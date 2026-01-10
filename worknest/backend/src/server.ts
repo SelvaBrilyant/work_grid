@@ -13,12 +13,15 @@ import {
   extractSubdomain,
   validateOrganization,
   enforceOrganizationIsolation,
+  errorHandler,
+  notFoundHandler,
 } from "./middlewares/index.js";
 import {
   authRoutes,
   channelRoutes,
   messageRoutes,
   userRoutes,
+  uploadRoutes,
 } from "./routes/index.js";
 
 // Load environment variables
@@ -43,9 +46,25 @@ app.use(
 // CORS configuration
 app.use(
   cors({
-    origin: process.env.ALLOWED_ORIGINS?.split(",") || [
-      "http://localhost:5173",
-    ],
+    origin: (origin, callback) => {
+      const allowedOrigins = process.env.ALLOWED_ORIGINS?.split(",") || [
+        "http://localhost:5173",
+      ];
+
+      if (!origin || allowedOrigins.includes(origin)) {
+        return callback(null, true);
+      }
+
+      // Check if it's a subdomain of localhost:5173
+      const isLocalSubdomain = /^http:\/\/([a-z0-9-]+\.)?localhost:5173$/.test(
+        origin
+      );
+      if (isLocalSubdomain) {
+        return callback(null, true);
+      }
+
+      callback(new Error("Not allowed by CORS"));
+    },
     credentials: true,
     methods: ["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
     allowedHeaders: [
@@ -120,27 +139,19 @@ app.use("/api/messages", messageRoutes);
 // User routes
 app.use("/api/users", userRoutes);
 
+// Upload routes
+app.use("/api/uploads", uploadRoutes);
+
+// Static files for uploads
+app.use("/uploads", express.static("uploads"));
+
 // ============= ERROR HANDLING =============
 
 // 404 handler
-app.use((_req: Request, res: Response) => {
-  res.status(404).json({
-    success: false,
-    error: "Route not found",
-  });
-});
+app.use(notFoundHandler);
 
 // Global error handler
-app.use((err: Error, _req: Request, res: Response, _next: NextFunction) => {
-  console.error("Error:", err);
-  res.status(500).json({
-    success: false,
-    error:
-      process.env.NODE_ENV === "production"
-        ? "Internal server error"
-        : err.message,
-  });
-});
+app.use(errorHandler);
 
 // ============= START SERVER =============
 

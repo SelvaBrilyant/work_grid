@@ -1,10 +1,10 @@
 import { useEffect } from 'react';
 import { useChatStore } from '@/store';
-import { Sidebar, ChatHeader, ChatWindow } from '@/components';
+import { Sidebar, ChatHeader, ChatWindow, DetailsPanel } from '@/components';
 import { TooltipProvider } from '@/components/ui/tooltip';
 
 export function Chat() {
-    const { fetchChannels, initSocketEvents } = useChatStore();
+    const { fetchChannels, initSocketEvents, detailsPanel } = useChatStore();
 
     useEffect(() => {
         // Fetch initial data
@@ -25,8 +25,13 @@ export function Chat() {
                     {/* Header */}
                     <ChatHeader />
 
-                    {/* Messages */}
-                    <ChatWindow />
+                    <div className="flex-1 flex overflow-hidden">
+                        {/* Messages */}
+                        <ChatWindow />
+
+                        {/* Right Detail Panel */}
+                        {detailsPanel.isOpen && <DetailsPanel />}
+                    </div>
                 </div>
             </div>
         </TooltipProvider>

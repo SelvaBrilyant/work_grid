@@ -11,6 +11,8 @@ export interface IUser extends Document {
   role: UserRole;
   status: UserStatus;
   avatar?: string;
+  invitationToken?: string;
+  invitationExpires?: Date;
   lastSeenAt: Date;
   createdAt: Date;
   updatedAt: Date;
@@ -57,6 +59,16 @@ const userSchema = new Schema<IUser>(
     avatar: {
       type: String,
       default: null,
+    },
+    invitationToken: {
+      type: String,
+      default: null,
+      select: false,
+    },
+    invitationExpires: {
+      type: Date,
+      default: null,
+      select: false,
     },
     lastSeenAt: {
       type: Date,

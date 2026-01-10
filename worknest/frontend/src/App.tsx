@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { useAuthStore } from '@/store';
-import { Login, Register, Chat } from '@/pages';
+import { Login, Register, Chat, AcceptInvite, AuthCallback } from '@/pages';
 
 // Protected Route Component
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
@@ -78,6 +78,22 @@ function App() {
           element={
             <PublicRoute>
               <Register />
+            </PublicRoute>
+          }
+        />
+        <Route
+          path="/accept-invite"
+          element={
+            <PublicRoute>
+              <AcceptInvite />
+            </PublicRoute>
+          }
+        />
+        <Route
+          path="/auth-callback"
+          element={
+            <PublicRoute>
+              <AuthCallback />
             </PublicRoute>
           }
         />

@@ -19,19 +19,36 @@ export const extractSubdomain = async (
 
     // Handle localhost development
     if (host.includes("localhost")) {
-      // Check for subdomain in query param for development
-      subdomain =
-        (req.query.org as string) ||
-        (req.headers["x-subdomain"] as string) ||
-        null;
+      // 1. Check for subdomain in host (e.g., zoho.localhost:5173)
+      const hostParts = host.split(".");
+      if (
+        hostParts.length > 1 &&
+        hostParts[hostParts.length - 1].includes("localhost")
+      ) {
+        // If it's something.localhost, extract 'something'
+        // If there are multiple parts, take the first one
+        if (hostParts.length >= 2) {
+          subdomain = hostParts[0].toLowerCase();
+        }
+      }
+
+      // 2. fallback to query/header if still not found
+      if (!subdomain) {
+        subdomain =
+          (
+            (req.query.org as string) ||
+            (req.headers["x-subdomain"] as string) ||
+            null
+          )?.toLowerCase() || null;
+      }
     } else {
       // Production: Extract subdomain from host
       // e.g., zoho.worknest.com -> zoho
       const parts = host.split(".");
       if (parts.length >= 3) {
-        subdomain = parts[0];
+        subdomain = parts[0].toLowerCase();
       } else if (parts.length === 2 && !host.includes(baseDomain)) {
-        subdomain = parts[0];
+        subdomain = parts[0].toLowerCase();
       }
     }
 
@@ -42,7 +59,14 @@ export const extractSubdomain = async (
 
     if (!subdomain) {
       // Allow requests without subdomain for specific routes
-      const publicRoutes = ["/health", "/api/organizations/register"];
+      const publicRoutes = [
+        "/health",
+        "/api/organizations/register",
+        "/api/auth/register",
+        "/api/auth/activate",
+        "/api/auth/me",
+        "/register",
+      ];
       if (publicRoutes.some((route) => req.path.startsWith(route))) {
         return next();
       }
@@ -79,7 +103,14 @@ export const validateOrganization = async (
 
     if (!subdomain) {
       // Allow requests without subdomain for specific routes
-      const publicRoutes = ["/health", "/api/organizations/register"];
+      const publicRoutes = [
+        "/health",
+        "/api/organizations/register",
+        "/api/auth/register",
+        "/api/auth/activate",
+        "/api/auth/me",
+        "/register",
+      ];
       if (publicRoutes.some((route) => req.path.startsWith(route))) {
         return next();
       }

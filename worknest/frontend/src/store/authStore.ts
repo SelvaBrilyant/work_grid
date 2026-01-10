@@ -30,7 +30,10 @@ interface AuthState {
 
   // Actions
   setSubdomain: (subdomain: string) => void;
-  login: (email: string, password: string) => Promise<void>;
+  login: (
+    email: string,
+    password: string
+  ) => Promise<{ success?: boolean; redirectUrl?: string } | void>;
   register: (data: {
     organizationName: string;
     subdomain: string;
@@ -40,6 +43,11 @@ interface AuthState {
   }) => Promise<void>;
   logout: () => void;
   fetchUser: () => Promise<void>;
+  invite: (data: {
+    email: string;
+    name: string;
+    role?: string;
+  }) => Promise<void>;
   clearError: () => void;
 }
 
@@ -65,7 +73,12 @@ export const useAuthStore = create<AuthState>()(
           const { data } = await authApi.login({ email, password });
 
           if (data.success) {
-            const { user, organization, token } = data.data;
+            const { user, organization, token, redirectUrl } = data.data;
+
+            if (redirectUrl) {
+              set({ isLoading: false });
+              return { redirectUrl };
+            }
 
             localStorage.setItem("token", token);
             localStorage.setItem(
@@ -84,6 +97,7 @@ export const useAuthStore = create<AuthState>()(
               isAuthenticated: true,
               isLoading: false,
             });
+            return { success: true };
           }
         } catch (error: unknown) {
           const err = error as { response?: { data?: { error?: string } } };
@@ -176,6 +190,21 @@ export const useAuthStore = create<AuthState>()(
             isAuthenticated: false,
             isLoading: false,
           });
+        }
+      },
+
+      invite: async (data) => {
+        set({ isLoading: true, error: null });
+        try {
+          await authApi.invite(data);
+          set({ isLoading: false });
+        } catch (error: unknown) {
+          const err = error as { response?: { data?: { error?: string } } };
+          set({
+            error: err.response?.data?.error || "Invitation failed",
+            isLoading: false,
+          });
+          throw error;
         }
       },
 

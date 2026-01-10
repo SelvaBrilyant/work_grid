@@ -8,6 +8,8 @@ import {
     ChevronDown,
     Users,
     Search,
+    UserPlus,
+    Mail,
 } from 'lucide-react';
 import { useAuthStore, useChatStore } from '@/store';
 import { cn, getInitials, getAvatarColor } from '@/lib/utils';
@@ -42,6 +44,10 @@ export function Sidebar() {
     const [newChannelName, setNewChannelName] = useState('');
     const [newChannelType, setNewChannelType] = useState<'PUBLIC' | 'PRIVATE'>('PUBLIC');
     const [searchQuery, setSearchQuery] = useState('');
+    const [isInviteOpen, setIsInviteOpen] = useState(false);
+    const [inviteEmail, setInviteEmail] = useState('');
+    const [inviteName, setInviteName] = useState('');
+    const { invite, isLoading: isAuthLoading, error: authError, clearError: clearAuthError } = useAuthStore();
 
     const publicChannels = channels.filter((c) => c.type === 'PUBLIC');
     const privateChannels = channels.filter((c) => c.type === 'PRIVATE');
@@ -73,6 +79,21 @@ export function Sidebar() {
             setIsDirectMessageOpen(false);
         } catch (error) {
             console.error('Failed to create DM:', error);
+        }
+    };
+
+    const handleInvite = async (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!inviteEmail || !inviteName) return;
+
+        try {
+            await invite({ email: inviteEmail, name: inviteName });
+            setIsInviteOpen(false);
+            setInviteEmail('');
+            setInviteName('');
+            setIsDirectMessageOpen(false);
+        } catch (error) {
+            console.error('Failed to invite user:', error);
         }
     };
 
@@ -289,35 +310,139 @@ export function Sidebar() {
                                     </div>
                                     <ScrollArea className="h-[300px]">
                                         <div className="space-y-1">
-                                            {filteredUsers.map((u) => (
-                                                <button
-                                                    key={u.id}
-                                                    onClick={() => handleStartDM(u.id)}
-                                                    className="w-full flex items-center gap-3 p-2 rounded-md hover:bg-accent transition-colors"
-                                                >
-                                                    <div className="relative">
-                                                        <Avatar className="h-9 w-9">
-                                                            <AvatarImage src={u.avatar} />
-                                                            <AvatarFallback className={getAvatarColor(u.name)}>
-                                                                {getInitials(u.name)}
-                                                            </AvatarFallback>
-                                                        </Avatar>
-                                                        {u.isOnline && (
-                                                            <span className="absolute -bottom-0.5 -right-0.5 h-3 w-3 rounded-full bg-green-500 border-2 border-background" />
-                                                        )}
-                                                    </div>
-                                                    <div className="text-left">
-                                                        <p className="font-medium text-sm">{u.name}</p>
-                                                        <p className="text-xs text-muted-foreground">{u.email}</p>
-                                                    </div>
-                                                </button>
-                                            ))}
+                                            {filteredUsers.length > 0 ? (
+                                                filteredUsers.map((u) => (
+                                                    <button
+                                                        key={u.id}
+                                                        onClick={() => handleStartDM(u.id)}
+                                                        className="w-full flex items-center gap-3 p-2 rounded-md hover:bg-accent transition-colors"
+                                                    >
+                                                        <div className="relative">
+                                                            <Avatar className="h-9 w-9">
+                                                                <AvatarImage src={u.avatar} />
+                                                                <AvatarFallback className={getAvatarColor(u.name)}>
+                                                                    {getInitials(u.name)}
+                                                                </AvatarFallback>
+                                                            </Avatar>
+                                                            {u.isOnline && (
+                                                                <span className="absolute -bottom-0.5 -right-0.5 h-3 w-3 rounded-full bg-green-500 border-2 border-background" />
+                                                            )}
+                                                        </div>
+                                                        <div className="text-left">
+                                                            <p className="font-medium text-sm">{u.name}</p>
+                                                            <p className="text-xs text-muted-foreground">{u.email}</p>
+                                                        </div>
+                                                    </button>
+                                                ))
+                                            ) : (
+                                                <div className="text-center py-8">
+                                                    <p className="text-sm text-muted-foreground mb-4">No users found.</p>
+                                                    {user?.role === 'ADMIN' && (
+                                                        <Button
+                                                            variant="outline"
+                                                            size="sm"
+                                                            className="gap-2"
+                                                            onClick={() => {
+                                                                clearAuthError();
+                                                                setIsInviteOpen(true);
+                                                            }}
+                                                        >
+                                                            <UserPlus className="h-4 w-4" />
+                                                            Invite someone new
+                                                        </Button>
+                                                    )}
+                                                </div>
+                                            )}
                                         </div>
                                     </ScrollArea>
+
+                                    {user?.role === 'ADMIN' && filteredUsers.length > 0 && (
+                                        <div className="pt-2 border-t mt-2">
+                                            <Button
+                                                variant="ghost"
+                                                className="w-full justify-start gap-2 text-primary hover:text-primary hover:bg-primary/10"
+                                                onClick={() => {
+                                                    clearAuthError();
+                                                    setIsInviteOpen(true);
+                                                }}
+                                            >
+                                                <UserPlus className="h-4 w-4" />
+                                                Can't find someone? Invite them
+                                            </Button>
+                                        </div>
+                                    )}
                                 </div>
                             </DialogContent>
                         </Dialog>
                     </div>
+
+                    {/* Invite Dialog */}
+                    <Dialog open={isInviteOpen} onOpenChange={setIsInviteOpen}>
+                        <DialogContent className="sm:max-w-md">
+                            <DialogHeader>
+                                <DialogTitle className="flex items-center gap-2">
+                                    <UserPlus className="h-5 w-5 text-primary" />
+                                    Invite to {organization?.name}
+                                </DialogTitle>
+                                <DialogDescription>
+                                    They'll receive an email with a link to join your workspace.
+                                </DialogDescription>
+                            </DialogHeader>
+                            <form onSubmit={handleInvite} className="space-y-4 py-4">
+                                {authError && (
+                                    <div className="p-3 rounded-lg bg-destructive/10 border border-destructive/20 text-destructive text-sm">
+                                        {authError}
+                                    </div>
+                                )}
+                                <div className="space-y-2">
+                                    <label className="text-sm font-medium">Full Name</label>
+                                    <div className="relative">
+                                        <Users className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                                        <Input
+                                            placeholder="Jane Doe"
+                                            className="pl-9"
+                                            value={inviteName}
+                                            onChange={(e) => setInviteName(e.target.value)}
+                                            required
+                                        />
+                                    </div>
+                                </div>
+                                <div className="space-y-2">
+                                    <label className="text-sm font-medium">Email Address</label>
+                                    <div className="relative">
+                                        <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                                        <Input
+                                            type="email"
+                                            placeholder="jane@example.com"
+                                            className="pl-9"
+                                            value={inviteEmail}
+                                            onChange={(e) => setInviteEmail(e.target.value)}
+                                            required
+                                        />
+                                    </div>
+                                </div>
+                                <DialogFooter className="pt-4">
+                                    <Button
+                                        type="button"
+                                        variant="outline"
+                                        onClick={() => setIsInviteOpen(false)}
+                                    >
+                                        Cancel
+                                    </Button>
+                                    <Button type="submit" disabled={isAuthLoading}>
+                                        {isAuthLoading ? (
+                                            <div className="flex items-center gap-2">
+                                                <div className="animate-spin h-4 w-4 border-2 border-current border-t-transparent rounded-full" />
+                                                <span>Sending...</span>
+                                            </div>
+                                        ) : (
+                                            'Send Invitation'
+                                        )}
+                                    </Button>
+                                </DialogFooter>
+                            </form>
+                        </DialogContent>
+                    </Dialog>
                     <div className="space-y-0.5">
                         {dmChannels.map((channel) => (
                             <ChannelItem key={channel.id} channel={channel} />

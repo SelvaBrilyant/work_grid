@@ -1,11 +1,17 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { Send, Paperclip, X, Smile, AtSign } from 'lucide-react';
+import EmojiPicker, { EmojiClickData } from 'emoji-picker-react';
 import { useChatStore } from '@/store';
 import { getSocket } from '@/lib/socket';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { MessageBubble } from '@/components/MessageBubble';
+import {
+    DropdownMenu,
+    DropdownMenuContent,
+    DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 
 function TypingIndicator({ users }: { users: Map<string, { userName: string }> }) {
     if (users.size === 0) return null;
@@ -39,8 +45,9 @@ export function ChatWindow() {
         isLoadingMessages,
         typingUsers,
         replyTo,
+        users,
         fetchMessages,
-        sendMessage,
+        fetchUsers,
         setReplyTo,
         startTyping,
         stopTyping,
@@ -49,8 +56,13 @@ export function ChatWindow() {
     } = useChatStore();
 
     const [inputValue, setInputValue] = useState('');
+    const [pendingAttachments, setPendingAttachments] = useState<{ url: string, name: string, type: string, size: number }[]>([]);
+    const [isUploading, setIsUploading] = useState(false);
+    const [mentionSuggestions, setMentionSuggestions] = useState<{ id: string, name: string }[]>([]);
+    const [mentionPosition, setMentionPosition] = useState<{ top: number, left: number } | null>(null);
     const messagesEndRef = useRef<HTMLDivElement>(null);
     const inputRef = useRef<HTMLTextAreaElement>(null);
+    const fileInputRef = useRef<HTMLInputElement>(null);
     const scrollAreaRef = useRef<HTMLDivElement>(null);
     const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
     const isTypingRef = useRef(false);
@@ -69,6 +81,11 @@ export function ChatWindow() {
         }
     }, [activeChannel, fetchMessages]);
 
+    // Fetch users for mentions
+    useEffect(() => {
+        fetchUsers();
+    }, [fetchUsers]);
+
     // Focus input when channel changes
     useEffect(() => {
         if (activeChannel && inputRef.current) {
@@ -77,46 +94,154 @@ export function ChatWindow() {
     }, [activeChannel]);
 
     const handleSendMessage = useCallback(() => {
-        if (!inputValue.trim() || !activeChannel) return;
+        if ((!inputValue.trim() && pendingAttachments.length === 0) || !activeChannel) return;
 
-        sendMessage(inputValue.trim());
+        const socket = getSocket();
+        if (socket) {
+            // === DETAILED DEBUG LOGGING FOR REPLY-TO ===
+            console.log('\n========== FRONTEND SEND MESSAGE DEBUG ==========');
+            console.log('📤 replyTo state object:', replyTo);
+            console.log('📤 replyTo?.id:', replyTo?.id);
+            console.log('📤 replyTo type:', typeof replyTo);
+            console.log('📤 replyTo?.id type:', typeof replyTo?.id);
+
+            const messagePayload = {
+                channelId: activeChannel.id,
+                content: inputValue.trim() || (pendingAttachments.length > 0 ? `Sent ${pendingAttachments.length} file(s)` : ""),
+                replyTo: replyTo?.id || null, // Explicitly set to null if undefined
+                attachments: pendingAttachments,
+                contentType: pendingAttachments.length > 0 ? "FILE" : "TEXT"
+            };
+
+            console.log('📤 Full message payload:', JSON.stringify(messagePayload, null, 2));
+            console.log('========== END FRONTEND DEBUG ==========\n');
+
+            socket.emit("send-message", messagePayload);
+        }
+
         setInputValue('');
+        setPendingAttachments([]);
+        setMentionSuggestions([]);
+        setMentionPosition(null);
         stopTyping();
+        setReplyTo(null);
         isTypingRef.current = false;
 
         if (inputRef.current) {
             inputRef.current.style.height = 'auto';
         }
-    }, [inputValue, activeChannel, sendMessage, stopTyping]);
+    }, [inputValue, activeChannel, pendingAttachments, replyTo, stopTyping, setReplyTo]);
+
+    const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        const files = e.target.files;
+        if (!files || files.length === 0) return;
+
+        setIsUploading(true);
+        try {
+            const uploadPromises = Array.from(files).map(file => useChatStore.getState().uploadFile(file));
+            const results = await Promise.all(uploadPromises);
+            setPendingAttachments(prev => [...prev, ...results]);
+        } catch (error) {
+            console.error("Upload failed:", error);
+        } finally {
+            setIsUploading(false);
+            if (fileInputRef.current) fileInputRef.current.value = '';
+        }
+    };
+
+    const removeAttachment = (index: number) => {
+        setPendingAttachments(prev => prev.filter((_, i) => i !== index));
+    };
 
     const handleInputChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
         const value = e.target.value;
+        const selectionStart = e.target.selectionStart;
         setInputValue(value);
 
         // Auto-resize textarea
         e.target.style.height = 'auto';
         e.target.style.height = `${Math.min(e.target.scrollHeight, 150)}px`;
 
-        // Typing indicator
-        if (value.length > 0 && !isTypingRef.current) {
-            startTyping();
-            isTypingRef.current = true;
+        // Mention detection
+        const cursorPosition = selectionStart;
+        const textBeforeCursor = value.substring(0, cursorPosition);
+        const lastAtIndex = textBeforeCursor.lastIndexOf('@');
+
+        if (lastAtIndex !== -1) {
+            const charBeforeAt = lastAtIndex > 0 ? textBeforeCursor[lastAtIndex - 1] : '';
+            const isValidTrigger = lastAtIndex === 0 || /\s/.test(charBeforeAt) || /[.,!?;:([<{]/.test(charBeforeAt);
+
+            if (isValidTrigger) {
+                const query = textBeforeCursor.substring(lastAtIndex + 1);
+                const hasSpaceInQuery = /\s/.test(query);
+
+                if (!hasSpaceInQuery) {
+                    // Fallback fetch if users are not loaded
+                    if (users.length === 0) {
+                        fetchUsers();
+                    }
+
+                    const filtered = users
+                        .filter(u => u.name.toLowerCase().includes(query.toLowerCase()))
+                        .map(u => ({ id: u.id, name: u.name }));
+
+                    // Only show suggestions if there are actual suggestions
+                    if (filtered.length > 0) {
+                        setMentionSuggestions(filtered);
+                        setMentionPosition({ top: 0, left: 16 });
+                    } else {
+                        setMentionSuggestions([]);
+                        setMentionPosition(null);
+                    }
+                } else {
+                    setMentionSuggestions([]);
+                    setMentionPosition(null);
+                }
+            } else {
+                setMentionSuggestions([]);
+                setMentionPosition(null);
+            }
+        } else {
+            setMentionSuggestions([]);
+            setMentionPosition(null);
         }
 
-        // Clear existing timeout
+        // Handle typing indicator
+        if (!isTypingRef.current) {
+            isTypingRef.current = true;
+            startTyping();
+        }
+
         if (typingTimeoutRef.current) {
             clearTimeout(typingTimeoutRef.current);
         }
 
-        // Set new timeout
         typingTimeoutRef.current = setTimeout(() => {
-            if (value.length > 0) {
-                startTyping(); // Keep refreshing
-            } else {
-                stopTyping();
-                isTypingRef.current = false;
-            }
-        }, 2000);
+            stopTyping();
+            isTypingRef.current = false;
+        }, 3000);
+    };
+
+    const handleMentionSelect = (userName: string) => {
+        if (!inputRef.current) return;
+        const selectionStart = inputRef.current.selectionStart;
+        const lastAtIndex = inputValue.lastIndexOf('@', selectionStart - 1);
+
+        const newValue =
+            inputValue.substring(0, lastAtIndex) +
+            `@${userName} ` +
+            inputValue.substring(selectionStart);
+
+        setInputValue(newValue);
+        setMentionSuggestions([]);
+        setMentionPosition(null);
+
+        // Small delay to ensure state update doesn't fight with focus
+        setTimeout(() => {
+            inputRef.current?.focus();
+            const newPos = lastAtIndex + userName.length + 2;
+            inputRef.current?.setSelectionRange(newPos, newPos);
+        }, 0);
     };
 
     const handleKeyDown = (e: React.KeyboardEvent) => {
@@ -127,8 +252,29 @@ export function ChatWindow() {
     };
 
     const handleReply = (message: typeof messages[0]) => {
+        console.log('\n========== REPLY SELECTED ==========');
+        console.log('📝 Selected message for reply:', {
+            id: message.id,
+            content: message.content?.substring(0, 50),
+            sender: message.sender,
+            fullMessage: message
+        });
+        console.log('========== END REPLY SELECTED ==========\n');
         setReplyTo(message);
-        inputRef.current?.focus();
+        setTimeout(() => {
+            inputRef.current?.focus();
+        }, 0);
+    };
+
+    const scrollToMessage = (messageId: string) => {
+        const element = document.getElementById(`message-${messageId}`);
+        if (element) {
+            element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            element.classList.add('bg-primary/10');
+            setTimeout(() => {
+                element.classList.remove('bg-primary/10');
+            }, 2000);
+        }
     };
 
     const handleReact = (messageId: string, emoji: string) => {
@@ -152,6 +298,11 @@ export function ChatWindow() {
         if (current.contentType === 'SYSTEM' || prev.contentType === 'SYSTEM') return false;
         const timeDiff = new Date(current.createdAt).getTime() - new Date(prev.createdAt).getTime();
         return timeDiff < 60000; // 1 minute
+    };
+
+    const onEmojiClick = (emojiData: EmojiClickData) => {
+        setInputValue((prev) => prev + emojiData.emoji);
+        inputRef.current?.focus();
     };
 
     if (!activeChannel) {
@@ -216,6 +367,7 @@ export function ChatWindow() {
                             isGrouped={shouldGroup(message, messages[index - 1])}
                             onReply={handleReply}
                             onReact={handleReact}
+                            onScrollToMessage={scrollToMessage}
                         />
                     ))}
 
@@ -228,7 +380,7 @@ export function ChatWindow() {
             </ScrollArea>
 
             {/* Message Input */}
-            <div className="p-4 border-t border-border">
+            <div className="p-4 border-t border-border relative">
                 {/* Reply Preview */}
                 {replyTo && (
                     <div className="flex items-center justify-between mb-2 p-2 bg-muted/50 rounded-lg animate-slide-in">
@@ -236,7 +388,9 @@ export function ChatWindow() {
                             <div className="w-1 h-8 bg-primary rounded-full" />
                             <div>
                                 <span className="text-muted-foreground">Replying to </span>
-                                <span className="font-medium">{replyTo.sender.name}</span>
+                                <span className="font-medium text-primary">
+                                    {(replyTo.sender as { name?: string })?.name || 'Someone'}
+                                </span>
                                 <p className="text-muted-foreground truncate max-w-md">{replyTo.content}</p>
                             </div>
                         </div>
@@ -251,8 +405,68 @@ export function ChatWindow() {
                     </div>
                 )}
 
+                {/* Pending Attachments */}
+                {pendingAttachments.length > 0 && (
+                    <div className="flex flex-wrap gap-2 mb-3">
+                        {pendingAttachments.map((file, i) => (
+                            <div key={i} className="relative group/att">
+                                {file.type.startsWith('image/') ? (
+                                    <div className="h-20 w-20 rounded-lg overflow-hidden border bg-muted">
+                                        <img
+                                            src={file.url.startsWith('http') ? file.url : `http://localhost:5000${file.url}`}
+                                            className="h-full w-full object-cover"
+                                        />
+                                    </div>
+                                ) : (
+                                    <div className="h-20 w-20 rounded-lg border bg-muted flex flex-col items-center justify-center p-2 text-center">
+                                        <Paperclip className="h-6 w-6 text-muted-foreground mb-1" />
+                                        <span className="text-[10px] truncate w-full px-1">{file.name}</span>
+                                    </div>
+                                )}
+                                <button
+                                    onClick={() => removeAttachment(i)}
+                                    className="absolute -top-1 -right-1 bg-background border rounded-full p-0.5 shadow-sm hover:text-destructive transition-colors"
+                                >
+                                    <X className="h-3 w-3" />
+                                </button>
+                            </div>
+                        ))}
+                        {isUploading && (
+                            <div className="h-20 w-20 rounded-lg border border-dashed flex items-center justify-center">
+                                <div className="animate-spin h-5 w-5 border-2 border-primary border-t-transparent rounded-full" />
+                            </div>
+                        )}
+                    </div>
+                )}
+
+                {/* Mention Suggestions */}
+                {mentionPosition && mentionSuggestions.length > 0 && (
+                    <div
+                        className="absolute z-50 bg-popover border border-border rounded-lg shadow-xl min-w-[200px] overflow-hidden animate-in fade-in slide-in-from-bottom-2"
+                        style={{ bottom: '100%', left: '16px', marginBottom: '8px' }}
+                    >
+                        <div className="p-2 border-b border-border bg-muted/30">
+                            <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">People</span>
+                        </div>
+                        <ScrollArea className="max-h-[200px]">
+                            {mentionSuggestions.map((user) => (
+                                <button
+                                    key={user.id}
+                                    className="w-full flex items-center gap-2 px-3 py-2 text-sm hover:bg-primary/10 hover:text-primary transition-colors text-left"
+                                    onClick={() => handleMentionSelect(user.name)}
+                                >
+                                    <div className="h-6 w-6 rounded-full bg-primary/20 flex items-center justify-center text-[10px] font-bold text-primary">
+                                        {user.name.charAt(0).toUpperCase()}
+                                    </div>
+                                    <span>{user.name}</span>
+                                </button>
+                            ))}
+                        </ScrollArea>
+                    </div>
+                )}
+
                 {/* Input Area */}
-                <div className="flex items-end gap-2">
+                <div className="flex items-end gap-2 relative">
                     <div className="flex-1 relative">
                         <div
                             className={cn(
@@ -262,13 +476,22 @@ export function ChatWindow() {
                             )}
                         >
                             {/* Attachment Button */}
+                            <input
+                                type="file"
+                                ref={fileInputRef}
+                                className="hidden"
+                                multiple
+                                onChange={handleFileSelect}
+                            />
                             <Button
                                 type="button"
                                 variant="ghost"
                                 size="icon"
+                                onClick={() => fileInputRef.current?.click()}
+                                disabled={isUploading}
                                 className="h-10 w-10 shrink-0 text-muted-foreground hover:text-foreground"
                             >
-                                <Paperclip className="h-5 w-5" />
+                                <Paperclip className={cn("h-5 w-5", isUploading && "animate-pulse")} />
                             </Button>
 
                             {/* Input */}
@@ -286,14 +509,21 @@ export function ChatWindow() {
                             />
 
                             {/* Emoji Button */}
-                            <Button
-                                type="button"
-                                variant="ghost"
-                                size="icon"
-                                className="h-10 w-10 shrink-0 text-muted-foreground hover:text-foreground"
-                            >
-                                <Smile className="h-5 w-5" />
-                            </Button>
+                            <DropdownMenu>
+                                <DropdownMenuTrigger asChild>
+                                    <Button
+                                        type="button"
+                                        variant="ghost"
+                                        size="icon"
+                                        className="h-10 w-10 shrink-0 text-muted-foreground hover:text-foreground"
+                                    >
+                                        <Smile className="h-5 w-5" />
+                                    </Button>
+                                </DropdownMenuTrigger>
+                                <DropdownMenuContent side="top" align="end" className="p-0 border-none bg-transparent">
+                                    <EmojiPicker onEmojiClick={onEmojiClick} autoFocusSearch={false} />
+                                </DropdownMenuContent>
+                            </DropdownMenu>
 
                             {/* Mention Button */}
                             <Button
@@ -301,6 +531,22 @@ export function ChatWindow() {
                                 variant="ghost"
                                 size="icon"
                                 className="h-10 w-10 shrink-0 text-muted-foreground hover:text-foreground"
+                                onClick={() => {
+                                    const pos = inputRef.current?.selectionStart || 0;
+                                    const before = inputValue.substring(0, pos);
+                                    const after = inputValue.substring(pos);
+                                    const triggerChar = before.length === 0 || /\s/.test(before[before.length - 1]) ? '@' : ' @';
+                                    setInputValue(before + triggerChar + after);
+                                    inputRef.current?.focus();
+                                    // Trigger mention detection
+                                    const newPos = before.length + triggerChar.length;
+                                    setTimeout(() => {
+                                        if (inputRef.current) {
+                                            inputRef.current.setSelectionRange(newPos, newPos);
+                                            handleInputChange({ target: inputRef.current } as unknown as React.ChangeEvent<HTMLTextAreaElement>);
+                                        }
+                                    }, 0);
+                                }}
                             >
                                 <AtSign className="h-5 w-5" />
                             </Button>
@@ -329,7 +575,7 @@ export function ChatWindow() {
                     <kbd className="px-1.5 py-0.5 bg-muted rounded text-xs">Shift+Enter</kbd> for new line
                 </p>
             </div>
-        </div>
+        </div >
     );
 }
 

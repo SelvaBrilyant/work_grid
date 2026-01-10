@@ -78,7 +78,16 @@ export interface MessagePayload {
     avatar?: string;
   };
   channelId: string;
+  readBy: {
+    userId: string;
+    readAt: string;
+  }[];
   createdAt: string;
+  replyTo?: {
+    id: string;
+    content: string;
+    sender: { name: string };
+  } | null;
 }
 
 export interface TypingPayload {

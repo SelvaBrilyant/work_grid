@@ -71,11 +71,8 @@ export const authApi = {
   invite: (data: { email: string; name: string; role?: string }) =>
     api.post("/auth/invite", data),
 
-  activate: (data: {
-    email: string;
-    tempPassword: string;
-    newPassword: string;
-  }) => api.post("/auth/activate", data),
+  activate: (data: { token: string; newPassword: string; name?: string }) =>
+    api.post("/auth/activate", data),
 };
 
 // Channels API
@@ -121,6 +118,28 @@ export const messagesApi = {
 
   addReaction: (id: string, emoji: string) =>
     api.post(`/messages/${id}/reactions`, { emoji }),
+
+  markRead: (channelId: string) => api.post(`/messages/${channelId}/read`),
+
+  search: (channelId: string, query: string) =>
+    api.get(`/messages/${channelId}/search`, { params: { q: query } }),
+
+  getPinned: (channelId: string) => api.get(`/messages/${channelId}/pinned`),
+
+  togglePin: (id: string) => api.post(`/messages/${id}/pin`),
+};
+
+// Uploads API
+export const uploadsApi = {
+  uploadFile: (file: File) => {
+    const formData = new FormData();
+    formData.append("file", file);
+    return api.post("/uploads", formData, {
+      headers: {
+        "Content-Type": "multipart/form-data",
+      },
+    });
+  },
 };
 
 // Users API

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -50,6 +50,14 @@ export function Login() {
         localStorage.getItem('subdomain') || ''
     );
     const [showPassword, setShowPassword] = useState(false);
+    const [redirectUrl, setRedirectUrl] = useState<string | null>(null);
+
+    // Handle external redirection via effect to satisfy React Compiler purity rules
+    useEffect(() => {
+        if (redirectUrl) {
+            window.location.href = redirectUrl;
+        }
+    }, [redirectUrl]);
 
     // Organization form
     const orgForm = useForm<OrgFormValues>({
@@ -77,7 +85,13 @@ export function Login() {
 
     const handleLogin = async (values: CredentialsFormValues) => {
         try {
-            await login(values.email, values.password);
+            const result = await login(values.email, values.password);
+
+            if (result && result.redirectUrl) {
+                setRedirectUrl(result.redirectUrl);
+                return;
+            }
+
             navigate('/chat');
         } catch {
             // Error is handled in store

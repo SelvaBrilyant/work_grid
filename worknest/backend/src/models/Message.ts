@@ -19,7 +19,14 @@ export interface IMessage extends Document {
   editedAt?: Date;
   isDeleted: boolean;
   deletedAt?: Date;
+  isPinned: boolean;
+  pinnedAt?: Date;
+  pinnedBy?: mongoose.Types.ObjectId;
   reactions?: Map<string, mongoose.Types.ObjectId[]>;
+  readBy: {
+    userId: mongoose.Types.ObjectId;
+    readAt: Date;
+  }[];
   createdAt: Date;
   updatedAt: Date;
 }
@@ -81,11 +88,37 @@ const messageSchema = new Schema<IMessage>(
       type: Date,
       default: null,
     },
+    isPinned: {
+      type: Boolean,
+      default: false,
+    },
+    pinnedAt: {
+      type: Date,
+      default: null,
+    },
+    pinnedBy: {
+      type: Schema.Types.ObjectId,
+      ref: "User",
+      default: null,
+    },
     reactions: {
       type: Map,
       of: [Schema.Types.ObjectId],
       default: new Map(),
     },
+    readBy: [
+      {
+        userId: {
+          type: Schema.Types.ObjectId,
+          ref: "User",
+          required: true,
+        },
+        readAt: {
+          type: Date,
+          default: Date.now,
+        },
+      },
+    ],
   },
   {
     timestamps: true,

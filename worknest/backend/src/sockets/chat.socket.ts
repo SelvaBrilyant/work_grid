@@ -27,8 +27,9 @@ export const initializeChatSocket = (io: Server): void => {
     onlineUsers.get(organizationId)!.add(userId);
     userSockets.set(socket.id, userId);
 
-    // Join organization room
+    // Join organization and private user room
     socket.join(`org:${organizationId}`);
+    socket.join(`user:${userId}`);
 
     // Broadcast user online status
     socket.to(`org:${organizationId}`).emit("user-online", {
@@ -98,9 +99,29 @@ export const initializeChatSocket = (io: Server): void => {
         content: string;
         contentType?: string;
         replyTo?: string;
+        attachments?: any[];
       }) => {
         try {
-          const { channelId, content, contentType = "TEXT", replyTo } = data;
+          const {
+            channelId,
+            content,
+            contentType = "TEXT",
+            replyTo,
+            attachments = [],
+          } = data;
+
+          // === DETAILED LOGGING FOR REPLY-TO DEBUGGING ===
+          console.log("\n========== SEND MESSAGE DEBUG ==========");
+          console.log("📩 Raw data received:", JSON.stringify(data, null, 2));
+          console.log("🔍 Extracted values:");
+          console.log("   - channelId:", channelId);
+          console.log("   - content:", content?.substring(0, 50));
+          console.log("   - replyTo (raw):", replyTo);
+          console.log("   - replyTo type:", typeof replyTo);
+          console.log("   - replyTo truthy:", !!replyTo);
+          console.log("   - replyTo length:", replyTo?.length);
+          console.log("   - userId (sender):", userId);
+          console.log("   - attachments count:", attachments?.length || 0);
 
           if (!content || content.trim().length === 0) {
             socket.emit("error", { message: "Message content is required" });
@@ -119,6 +140,17 @@ export const initializeChatSocket = (io: Server): void => {
             return;
           }
 
+          // Process replyTo - handle undefined, null, empty string, and "undefined" string
+          const processedReplyTo =
+            replyTo &&
+            replyTo.length > 0 &&
+            replyTo !== "undefined" &&
+            replyTo !== "null"
+              ? replyTo
+              : null;
+
+          console.log("🔗 Processed replyTo:", processedReplyTo);
+
           // Create message
           const message = await Message.create({
             organizationId,
@@ -126,11 +158,35 @@ export const initializeChatSocket = (io: Server): void => {
             senderId: userId,
             content: xss(content.trim()),
             contentType,
-            replyTo: replyTo || null,
+            replyTo: processedReplyTo,
+            attachments: attachments || [],
           });
 
-          // Populate sender
-          await message.populate("senderId", "name email avatar");
+          console.log("💾 Message saved with ID:", message._id);
+          console.log(
+            "💾 Message replyTo field (before populate):",
+            message.replyTo
+          );
+
+          // Populate sender and replyTo
+          await message.populate([
+            { path: "senderId", select: "name email avatar" },
+            {
+              path: "replyTo",
+              populate: { path: "senderId", select: "name" },
+            },
+          ]);
+
+          console.log(
+            "📎 After populate - replyTo:",
+            message.replyTo
+              ? {
+                  id: (message.replyTo as any)?._id,
+                  content: (message.replyTo as any)?.content?.substring(0, 30),
+                  sender: (message.replyTo as any)?.senderId?.name,
+                }
+              : null
+          );
 
           // Update channel
           await Channel.updateOne(
@@ -152,9 +208,24 @@ export const initializeChatSocket = (io: Server): void => {
             content: message.content,
             contentType: message.contentType,
             sender: message.senderId,
+            replyTo: message.replyTo
+              ? {
+                  id: (message.replyTo as any)._id,
+                  content: (message.replyTo as any).content,
+                  sender: (message.replyTo as any).senderId,
+                }
+              : null,
+            attachments: message.attachments || [],
             channelId,
             createdAt: message.createdAt,
+            readBy: message.readBy || [],
           };
+
+          console.log(
+            "📤 Broadcasting messageData.replyTo:",
+            messageData.replyTo
+          );
+          console.log("========== END DEBUG ==========\n");
 
           // Broadcast to channel room
           io.to(`channel:${channelId}`).emit("receive-message", messageData);
@@ -222,11 +293,44 @@ export const initializeChatSocket = (io: Server): void => {
 
     // === MARK AS READ ===
     socket.on("mark-read", async (data: { channelId: string }) => {
-      const { channelId } = data;
-      await ChannelMember.updateOne(
-        { channelId, userId },
-        { lastReadAt: new Date(), unreadCount: 0 }
-      );
+      try {
+        const { channelId } = data;
+
+        // Update member unread status
+        await ChannelMember.updateOne(
+          { channelId, userId, organizationId },
+          { lastReadAt: new Date(), unreadCount: 0 }
+        );
+
+        // Update specific messages
+        await Message.updateMany(
+          {
+            channelId,
+            organizationId,
+            "readBy.userId": { $ne: userId },
+            isDeleted: false,
+          },
+          {
+            $push: {
+              readBy: {
+                userId,
+                readAt: new Date(),
+              },
+            },
+          }
+        );
+
+        // Broadcast that messages were read in this channel
+        // In a real app, you might want to send specific message IDs,
+        // but for now we'll just notify the channel room to refresh seen status
+        io.to(`channel:${channelId}`).emit("messages-read", {
+          channelId,
+          userId,
+          readAt: new Date(),
+        });
+      } catch (error) {
+        console.error("Mark as read error:", error);
+      }
     });
 
     // === MESSAGE REACTION ===
