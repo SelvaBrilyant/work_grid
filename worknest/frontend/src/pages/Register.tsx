@@ -20,6 +20,7 @@ import {
     MessageSquare,
     Shield
 } from 'lucide-react';
+import { toast } from 'sonner';
 import { useAuthStore } from '@/store';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -76,7 +77,7 @@ const TOTAL_STEPS = 3;
 
 export function Register() {
     const navigate = useNavigate();
-    const { register, isLoading, error, clearError } = useAuthStore();
+    const { register: registerOrg, isLoading, clearError } = useAuthStore();
 
     const [currentStep, setCurrentStep] = useState(1);
     const [showPassword, setShowPassword] = useState(false);
@@ -124,16 +125,22 @@ export function Register() {
 
     const handleSubmit = async (values: FormValues) => {
         try {
-            await register({
+            await registerOrg({
                 organizationName: values.organizationName,
                 subdomain: values.subdomain,
                 name: values.name,
                 email: values.email,
                 password: values.password,
             });
+            toast.success('Organization created successfully!');
             navigate('/chat');
-        } catch {
-            // Error handled in store
+        } catch (err: unknown) {
+            let errorMsg = 'Registration failed. Please try again.';
+            if (err && typeof err === 'object' && 'response' in err) {
+                const axiosError = err as { response?: { data?: { error?: string } } };
+                errorMsg = axiosError.response?.data?.error || errorMsg;
+            }
+            toast.error(errorMsg);
         }
     };
 
@@ -222,12 +229,6 @@ export function Register() {
                         <CardContent>
                             <Form {...form}>
                                 <form onSubmit={form.handleSubmit(handleSubmit)} className="space-y-6">
-                                    {error && (
-                                        <div className="p-3 rounded-lg bg-destructive/10 border border-destructive/20 text-destructive text-sm animate-in fade-in slide-in-from-top-2">
-                                            {error}
-                                        </div>
-                                    )}
-
                                     {/* Step 1: Organization */}
                                     {currentStep === 1 && (
                                         <div className="space-y-4 animate-in fade-in slide-in-from-right-4 duration-300">
@@ -349,10 +350,8 @@ export function Register() {
                                                                     {...field}
                                                                 />
                                                             </FormControl>
-                                                            <Button
+                                                            <button
                                                                 type="button"
-                                                                variant="ghost"
-                                                                size="icon"
                                                                 onClick={() => setShowPassword(!showPassword)}
                                                                 className="absolute right-0 top-0 h-full px-3 hover:bg-transparent"
                                                             >
@@ -361,7 +360,7 @@ export function Register() {
                                                                 ) : (
                                                                     <Eye className="h-4 w-4 text-muted-foreground" />
                                                                 )}
-                                                            </Button>
+                                                            </button>
                                                         </div>
                                                         <FormDescription>At least 6 characters</FormDescription>
                                                         <FormMessage />
@@ -385,10 +384,8 @@ export function Register() {
                                                                     {...field}
                                                                 />
                                                             </FormControl>
-                                                            <Button
+                                                            <button
                                                                 type="button"
-                                                                variant="ghost"
-                                                                size="icon"
                                                                 onClick={() => setShowConfirmPassword(!showConfirmPassword)}
                                                                 className="absolute right-0 top-0 h-full px-3 hover:bg-transparent"
                                                             >
@@ -397,7 +394,7 @@ export function Register() {
                                                                 ) : (
                                                                     <Eye className="h-4 w-4 text-muted-foreground" />
                                                                 )}
-                                                            </Button>
+                                                            </button>
                                                         </div>
                                                         <FormMessage />
                                                     </FormItem>

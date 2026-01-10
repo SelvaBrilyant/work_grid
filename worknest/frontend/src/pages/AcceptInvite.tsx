@@ -4,6 +4,7 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import { Eye, EyeOff, UserPlus, Lock, User } from 'lucide-react';
+import { toast } from 'sonner';
 import { authApi } from '@/lib/api';
 import { useAuthStore } from '@/store';
 import { Button } from '@/components/ui/button';
@@ -34,7 +35,7 @@ export function AcceptInvite() {
     const navigate = useNavigate();
     const { fetchUser } = useAuthStore();
     const [isLoading, setIsLoading] = useState(false);
-    const [error, setError] = useState<string | null>(null);
+    const [localError, setLocalError] = useState<string | null>(null);
     const [showPassword, setShowPassword] = useState(false);
 
     const token = searchParams.get('token');
@@ -50,7 +51,7 @@ export function AcceptInvite() {
 
     useEffect(() => {
         if (!token) {
-            setError('Invalid or missing invitation token.');
+            setLocalError('Invalid or missing invitation token.');
         }
     }, [token]);
 
@@ -58,7 +59,7 @@ export function AcceptInvite() {
         if (!token) return;
 
         setIsLoading(true);
-        setError(null);
+        setLocalError(null);
 
         try {
             const { data } = await authApi.activate({
@@ -69,12 +70,13 @@ export function AcceptInvite() {
 
             if (data.success) {
                 localStorage.setItem('token', data.data.token);
+                toast.success('Account created successfully!');
                 await fetchUser();
                 navigate('/chat');
             }
         } catch (err: unknown) {
             const error = err as { response?: { data?: { error?: string } } };
-            setError(error.response?.data?.error || 'Failed to accept invitation. It may have expired.');
+            toast.error(error.response?.data?.error || 'Failed to accept invitation. It may have expired.');
         } finally {
             setIsLoading(false);
         }
@@ -115,9 +117,9 @@ export function AcceptInvite() {
                 <CardContent>
                     <Form {...form}>
                         <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-                            {error && (
+                            {localError && (
                                 <div className="p-3 rounded-lg bg-destructive/10 text-destructive text-sm border border-destructive/20">
-                                    {error}
+                                    {localError}
                                 </div>
                             )}
 

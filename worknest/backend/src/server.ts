@@ -22,6 +22,7 @@ import {
   messageRoutes,
   userRoutes,
   uploadRoutes,
+  settingsRoutes,
 } from "./routes/index.js";
 
 // Load environment variables
@@ -138,6 +139,9 @@ app.use("/api/messages", messageRoutes);
 
 // User routes
 app.use("/api/users", userRoutes);
+
+// Settings routes
+app.use("/api/settings", settingsRoutes);
 
 // Upload routes
 app.use("/api/uploads", uploadRoutes);

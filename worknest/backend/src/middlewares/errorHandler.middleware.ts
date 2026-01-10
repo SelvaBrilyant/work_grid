@@ -155,11 +155,15 @@ export const errorHandler = (
 
   // Log error in development
   if (process.env.NODE_ENV !== "production") {
-    console.error("Error:", {
-      name: err.name,
-      message: err.message,
-      stack: err.stack,
-    });
+    if (err instanceof Error) {
+      console.error("Error Details:", {
+        name: err.name,
+        message: err.message,
+        stack: err.stack,
+      });
+    } else {
+      console.error("Non-Error object caught:", err);
+    }
   }
 
   // Send appropriate response based on environment

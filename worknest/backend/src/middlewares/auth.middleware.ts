@@ -59,11 +59,21 @@ export const authenticate = async (
       return;
     }
 
+    // Check token version (for global logout / session revocation)
+    if (user.tokenVersion !== decoded.tokenVersion) {
+      res.status(401).json({
+        success: false,
+        error: "Session expired or revoked. Please login again.",
+      });
+      return;
+    }
+
     // Attach user to request
     req.user = {
       userId: decoded.userId,
       organizationId: decoded.organizationId,
       role: decoded.role,
+      tokenVersion: decoded.tokenVersion,
     };
 
     // Update last seen

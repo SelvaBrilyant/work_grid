@@ -1,48 +1,71 @@
 import { Router, Response } from "express";
 import multer from "multer";
-import path from "path";
-import { v4 as uuidv4 } from "uuid";
+import { CloudinaryStorage } from "multer-storage-cloudinary";
+import cloudinary from "../config/cloudinary.js";
 import { AuthenticatedRequest } from "../types/index.js";
-import { UnauthorizedError } from "../utils/AppError.js";
-import fs from "fs";
+import { UnauthorizedError, BadRequestError } from "../utils/AppError.js";
 
 const router = Router();
 
-// Configure storage
-const storage = multer.diskStorage({
-  destination: (req, file, cb) => {
-    const dir = "uploads/";
-    if (!fs.existsSync(dir)) {
-      fs.mkdirSync(dir, { recursive: true });
+// Configure Cloudinary Storage
+const storage = new CloudinaryStorage({
+  cloudinary: cloudinary,
+  params: async (req, file) => {
+    console.log(
+      `Cloudinary storage params for: ${file.originalname} (${file.mimetype})`
+    );
+    const isImage = file.mimetype.startsWith("image/");
+    const isVideo = file.mimetype.startsWith("video/");
+
+    let folder = "worknest/others";
+    let resource_type = "auto";
+
+    if (isImage) {
+      folder = "worknest/images";
+      resource_type = "image";
+    } else if (isVideo) {
+      folder = "worknest/videos";
+      resource_type = "video";
+    } else if (
+      file.mimetype === "application/pdf" ||
+      file.mimetype.includes("msword") ||
+      file.mimetype.includes("officedocument")
+    ) {
+      folder = "worknest/docs";
+      resource_type = "raw";
     }
-    cb(null, dir);
-  },
-  filename: (req, file, cb) => {
-    const uniqueName = `${uuidv4()}${path.extname(file.originalname)}`;
-    cb(null, uniqueName);
+
+    return {
+      folder: folder,
+      resource_type: resource_type,
+      public_id: `${Date.now()}-${file.originalname.split(".")[0]}`,
+    };
   },
 });
 
 // File filter
 const fileFilter = (req: any, file: any, cb: any) => {
-  const allowedTypes = [
-    "image/jpeg",
-    "image/png",
-    "image/gif",
+  const isImage = file.mimetype.startsWith("image/");
+  const isVideo = file.mimetype.startsWith("video/");
+  const isDoc = [
     "application/pdf",
     "application/msword",
     "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
     "application/vnd.ms-excel",
     "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    "application/vnd.ms-powerpoint",
+    "application/vnd.openxmlformats-officedocument.presentationml.presentation",
     "text/plain",
-  ];
+    "text/csv",
+  ].includes(file.mimetype);
 
-  if (allowedTypes.includes(file.mimetype)) {
+  if (isImage || isVideo || isDoc) {
     cb(null, true);
   } else {
+    console.warn(`File upload rejected. Unallowed MIME type: ${file.mimetype}`);
     cb(
       new Error(
-        "Invalid file type. Only images, PDFs, Word, Excel, and text files are allowed."
+        "Invalid file type. Allowed types: Images, Videos, PDFs, Word, Excel, PowerPoint, and text files."
       ),
       false
     );
@@ -52,35 +75,37 @@ const fileFilter = (req: any, file: any, cb: any) => {
 const upload = multer({
   storage,
   limits: {
-    fileSize: 10 * 1024 * 1024, // 10MB
+    fileSize: 50 * 1024 * 1024, // 50MB (increased for videos)
   },
   fileFilter,
 });
 
 /**
  * @route   POST /api/uploads
- * @desc    Upload a file
+ * @desc    Upload a file to Cloudinary
  * @access  Private
  */
-router.post(
-  "/",
-  (req: AuthenticatedRequest, res: Response, next) => {
-    if (!req.user) {
-      return next(new UnauthorizedError("Authentication required."));
+router.post("/", (req: AuthenticatedRequest, res: Response, next) => {
+  if (!req.user) {
+    return next(new UnauthorizedError("Authentication required."));
+  }
+
+  upload.single("file")(req, res, (err: any) => {
+    if (err) {
+      if (err instanceof multer.MulterError) {
+        return next(new BadRequestError(`Upload error: ${err.message}`));
+      }
+      return next(err);
     }
-    next();
-  },
-  upload.single("file"),
-  (req: AuthenticatedRequest, res: Response) => {
+
     if (!req.file) {
       return res
         .status(400)
         .json({ success: false, message: "No file uploaded" });
     }
 
-    // Construct URL - in prod this would be S3 or similar
-    // For dev, we'll use the local path
-    const fileUrl = `/uploads/${req.file.filename}`;
+    // req.file.path will contain the Cloudinary URL
+    const fileUrl = req.file.path;
 
     res.json({
       success: true,
@@ -89,9 +114,10 @@ router.post(
         name: req.file.originalname,
         type: req.file.mimetype,
         size: req.file.size,
+        public_id: (req.file as any).filename, // Cloudinary public_id
       },
     });
-  }
-);
+  });
+});
 
 export default router;

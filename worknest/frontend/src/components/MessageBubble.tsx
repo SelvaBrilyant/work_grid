@@ -248,6 +248,14 @@ export const MessageBubble = memo(function MessageBubble({
                                             </Button>
                                         </div>
                                     </div>
+                                ) : file.type.startsWith('video/') ? (
+                                    <div className="relative rounded-lg overflow-hidden border bg-black">
+                                        <video
+                                            src={file.url.startsWith('http') ? file.url : `http://localhost:5000${file.url}`}
+                                            controls
+                                            className="max-h-[300px] w-full"
+                                        />
+                                    </div>
                                 ) : (
                                     <a
                                         href={file.url.startsWith('http') ? file.url : `http://localhost:5000${file.url}`}

@@ -3,3 +3,4 @@ export { Register } from "./Register";
 export { Chat } from "./Chat";
 export { AcceptInvite } from "./AcceptInvite";
 export { AuthCallback } from "./AuthCallback";
+export { Settings } from "./Settings";

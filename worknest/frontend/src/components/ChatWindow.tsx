@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
-import { Send, Paperclip, X, Smile, AtSign } from 'lucide-react';
+import { Send, Paperclip, X, Smile, AtSign, Video } from 'lucide-react';
 import EmojiPicker, { EmojiClickData } from 'emoji-picker-react';
 import { useChatStore } from '@/store';
 import { getSocket } from '@/lib/socket';
@@ -416,6 +416,11 @@ export function ChatWindow() {
                                             src={file.url.startsWith('http') ? file.url : `http://localhost:5000${file.url}`}
                                             className="h-full w-full object-cover"
                                         />
+                                    </div>
+                                ) : file.type.startsWith('video/') ? (
+                                    <div className="h-20 w-20 rounded-lg border bg-muted flex flex-col items-center justify-center p-2 text-center">
+                                        <Video className="h-6 w-6 text-muted-foreground mb-1" />
+                                        <span className="text-[10px] truncate w-full px-1">{file.name}</span>
                                     </div>
                                 ) : (
                                     <div className="h-20 w-20 rounded-lg border bg-muted flex flex-col items-center justify-center p-2 text-center">

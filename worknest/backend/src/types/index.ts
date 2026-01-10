@@ -5,6 +5,7 @@ export interface JWTPayload {
   userId: string;
   organizationId: string;
   role: "ADMIN" | "EMPLOYEE";
+  tokenVersion: number;
   iat?: number;
   exp?: number;
 }

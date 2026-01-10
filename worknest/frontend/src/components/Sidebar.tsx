@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
     Hash,
     Lock,
@@ -37,6 +38,7 @@ import {
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 
 export function Sidebar() {
+    const navigate = useNavigate();
     const { user, organization, logout } = useAuthStore();
     const { channels, activeChannel, setActiveChannel, onlineUsers, createChannel, fetchUsers, users, createDM } = useChatStore();
     const [isCreateChannelOpen, setIsCreateChannelOpen] = useState(false);
@@ -171,7 +173,7 @@ export function Sidebar() {
                     </button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent className="w-56" align="start">
-                    <DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => navigate('/settings')}>
                         <Settings className="mr-2 h-4 w-4" />
                         <span>Settings</span>
                     </DropdownMenuItem>

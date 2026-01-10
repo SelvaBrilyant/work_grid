@@ -1,4 +1,5 @@
 import axios from "axios";
+import { UserSettings, OrganizationSettings } from "@/types";
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:5000";
 
@@ -73,6 +74,9 @@ export const authApi = {
 
   activate: (data: { token: string; newPassword: string; name?: string }) =>
     api.post("/auth/activate", data),
+
+  changePassword: (data: { currentPassword: string; newPassword: string }) =>
+    api.post("/auth/change-password", data),
 };
 
 // Channels API
@@ -151,10 +155,42 @@ export const usersApi = {
 
   update: (
     id: string,
-    data: { name?: string; avatar?: string; role?: string; status?: string }
+    data: {
+      name?: string;
+      avatar?: string;
+      role?: string;
+      status?: string;
+      statusMessage?: string;
+      settings?: Partial<UserSettings>;
+    }
   ) => api.put(`/users/${id}`, data),
 
   delete: (id: string) => api.delete(`/users/${id}`),
+  deleteMe: () => api.delete("/users/me"),
+};
+
+// Settings API
+export const settingsApi = {
+  updateOrganization: (data: {
+    name?: string;
+    logo?: string;
+    settings?: {
+      general?: Partial<OrganizationSettings["general"]>;
+      channelPolicies?: Partial<OrganizationSettings["channelPolicies"]>;
+      security?: Partial<OrganizationSettings["security"]>;
+      notifications?: Partial<OrganizationSettings["notifications"]>;
+    };
+  }) => api.put("/settings/organization", data),
+  forceLogoutAll: () => api.post("/settings/organization/force-logout"),
+  updateUser: (data: {
+    statusMessage?: string;
+    settings?: {
+      preferences?: Partial<UserSettings["preferences"]>;
+      notifications?: Partial<UserSettings["notifications"]>;
+      privacy?: Partial<UserSettings["privacy"]>;
+    };
+  }) => api.put("/settings/user", data),
+  logoutDevices: () => api.post("/settings/user/logout-devices"),
 };
 
 export default api;

@@ -79,6 +79,7 @@ class AuthController {
       userId: user._id.toString(),
       organizationId: organization._id.toString(),
       role: user.role,
+      tokenVersion: user.tokenVersion,
     });
 
     // Send welcome email (non-blocking)
@@ -98,12 +99,14 @@ class AuthController {
           id: organization._id,
           name: organization.name,
           subdomain: organization.subdomain,
+          settings: organization.settings,
         },
         user: {
           id: user._id,
           name: user.name,
           email: user.email,
           role: user.role,
+          settings: user.settings,
         },
         token,
       },
@@ -163,6 +166,7 @@ class AuthController {
       userId: user._id.toString(),
       organizationId: user.organizationId.toString(),
       role: user.role,
+      tokenVersion: user.tokenVersion,
     });
 
     // Get organization info
@@ -189,12 +193,17 @@ class AuthController {
           email: user.email,
           role: user.role,
           avatar: user.avatar,
+          status: user.status,
+          statusMessage: user.statusMessage,
+          settings: user.settings,
         },
         organization: organization
           ? {
               id: organization._id,
               name: organization.name,
               subdomain: organization.subdomain,
+              logo: organization.logo,
+              settings: organization.settings,
             }
           : null,
         token,
@@ -230,13 +239,17 @@ class AuthController {
           role: user.role,
           avatar: user.avatar,
           status: user.status,
+          statusMessage: user.statusMessage,
           lastSeenAt: user.lastSeenAt,
+          settings: user.settings,
         },
         organization: {
           id: organization._id,
           name: organization.name,
           subdomain: organization.subdomain,
           plan: organization.plan,
+          logo: organization.logo,
+          settings: organization.settings,
         },
       },
     });
@@ -372,6 +385,7 @@ class AuthController {
       userId: user._id.toString(),
       organizationId: user.organizationId.toString(),
       role: user.role,
+      tokenVersion: user.tokenVersion,
     });
 
     // Get organization info for redirect
@@ -397,6 +411,8 @@ class AuthController {
           name: user.name,
           email: user.email,
           role: user.role,
+          status: user.status,
+          settings: user.settings,
         },
         organization: organization
           ? {
@@ -409,6 +425,53 @@ class AuthController {
         redirectUrl,
       },
       message: "Account activated successfully.",
+    });
+  }
+
+  /**
+   * Change user password
+   * @route POST /api/auth/change-password
+   */
+  async changePassword(
+    req: AuthenticatedRequest,
+    res: Response
+  ): Promise<void> {
+    if (!req.user) {
+      throw new UnauthorizedError("Authentication required.");
+    }
+
+    const { currentPassword, newPassword } = req.body;
+
+    if (!currentPassword || !newPassword) {
+      throw new BadRequestError(
+        "Current password and new password are required."
+      );
+    }
+
+    if (newPassword.length < 8) {
+      throw new BadRequestError("New password must be at least 8 characters.");
+    }
+
+    // Find user with password
+    const user = await User.findById(req.user.userId).select("+passwordHash");
+
+    if (!user) {
+      throw new NotFoundError("User not found.");
+    }
+
+    // Verify current password
+    const isMatch = await user.comparePassword(currentPassword);
+    if (!isMatch) {
+      throw new UnauthorizedError("Current password is incorrect.");
+    }
+
+    // Update password
+    user.passwordHash = newPassword;
+    await user.save();
+
+    res.json({
+      success: true,
+      message: "Password changed successfully.",
     });
   }
 }

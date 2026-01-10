@@ -26,6 +26,16 @@ router.get("/:id", asyncHandler(userController.getById.bind(userController)));
 router.put("/:id", asyncHandler(userController.update.bind(userController)));
 
 /**
+ * @route   DELETE /api/users/me
+ * @desc    Delete own account
+ * @access  Private
+ */
+router.delete(
+  "/me",
+  asyncHandler(userController.deleteMe.bind(userController))
+);
+
+/**
  * @route   DELETE /api/users/:id
  * @desc    Delete/block user
  * @access  Private (admin only)

@@ -3,21 +3,7 @@ import { persist } from "zustand/middleware";
 import { authApi } from "@/lib/api";
 import { initSocket, disconnectSocket } from "@/lib/socket";
 
-export interface User {
-  id: string;
-  name: string;
-  email: string;
-  role: "ADMIN" | "EMPLOYEE";
-  avatar?: string;
-  status?: string;
-}
-
-export interface Organization {
-  id: string;
-  name: string;
-  subdomain: string;
-  plan?: string;
-}
+import { User, Organization } from "@/types";
 
 interface AuthState {
   user: User | null;

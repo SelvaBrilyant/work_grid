@@ -9,9 +9,30 @@ export interface IOrganization extends Document {
   plan: OrganizationPlan;
   logo?: string;
   settings?: {
-    allowPublicChannels: boolean;
-    maxChannels: number;
-    maxMembers: number;
+    general: {
+      timezone: string;
+      language: string;
+    };
+    channelPolicies: {
+      defaultChannels: string[];
+      allowPrivateChannels: boolean;
+      messageRetentionDays: number;
+    };
+    security: {
+      passwordPolicy: {
+        minLength: number;
+        requireNumbers: boolean;
+        requireSymbols: boolean;
+      };
+      sessionTimeoutMinutes: number;
+    };
+    notifications: {
+      enableEmailNotifications: boolean;
+      defaultPreferences: {
+        allMessages: boolean;
+        mentionsOnly: boolean;
+      };
+    };
   };
   createdAt: Date;
   updatedAt: Date;
@@ -54,9 +75,30 @@ const organizationSchema = new Schema<IOrganization>(
       default: null,
     },
     settings: {
-      allowPublicChannels: { type: Boolean, default: true },
-      maxChannels: { type: Number, default: 50 },
-      maxMembers: { type: Number, default: 100 },
+      general: {
+        timezone: { type: String, default: "UTC" },
+        language: { type: String, default: "en" },
+      },
+      channelPolicies: {
+        defaultChannels: [{ type: String, default: ["general"] }],
+        allowPrivateChannels: { type: Boolean, default: true },
+        messageRetentionDays: { type: Number, default: 0 }, // 0 = forever
+      },
+      security: {
+        passwordPolicy: {
+          minLength: { type: Number, default: 8 },
+          requireNumbers: { type: Boolean, default: false },
+          requireSymbols: { type: Boolean, default: false },
+        },
+        sessionTimeoutMinutes: { type: Number, default: 1440 }, // 24 hours
+      },
+      notifications: {
+        enableEmailNotifications: { type: Boolean, default: true },
+        defaultPreferences: {
+          allMessages: { type: Boolean, default: false },
+          mentionsOnly: { type: Boolean, default: true },
+        },
+      },
     },
   },
   {

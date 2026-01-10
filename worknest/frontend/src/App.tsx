@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { useAuthStore } from '@/store';
-import { Login, Register, Chat, AcceptInvite, AuthCallback } from '@/pages';
+import { Login, Register, Chat, AcceptInvite, AuthCallback, Settings } from '@/pages';
+import { Toaster } from '@/components/ui/sonner';
 
 // Protected Route Component
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
@@ -16,7 +17,7 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
     checkAuth();
   }, [fetchUser]);
 
-  if (isChecking || isLoading) {
+  if (isChecking || (isLoading && !isAuthenticated)) {
     return (
       <div className="h-screen flex items-center justify-center bg-background">
         <div className="text-center space-y-4">
@@ -61,6 +62,22 @@ function PublicRoute({ children }: { children: React.ReactNode }) {
 }
 
 function App() {
+  const { user } = useAuthStore();
+
+  useEffect(() => {
+    const theme = user?.settings?.preferences?.theme || 'system';
+    const root = window.document.documentElement;
+
+    root.classList.remove('light', 'dark');
+
+    if (theme === 'system') {
+      const systemTheme = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+      root.classList.add(systemTheme);
+    } else {
+      root.classList.add(theme);
+    }
+  }, [user?.settings?.preferences?.theme]);
+
   return (
     <BrowserRouter>
       <Routes>
@@ -107,11 +124,20 @@ function App() {
             </ProtectedRoute>
           }
         />
+        <Route
+          path="/settings"
+          element={
+            <ProtectedRoute>
+              <Settings />
+            </ProtectedRoute>
+          }
+        />
 
         {/* Default redirect */}
         <Route path="/" element={<Navigate to="/chat" replace />} />
         <Route path="*" element={<Navigate to="/chat" replace />} />
       </Routes>
+      <Toaster position="top-right" expand={false} richColors />
     </BrowserRouter>
   );
 }

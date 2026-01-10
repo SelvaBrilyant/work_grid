@@ -4,6 +4,7 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import { Eye, EyeOff, LogIn, Building2, Sparkles, Globe, Mail, Lock } from 'lucide-react';
+import { toast } from 'sonner';
 import { useAuthStore } from '@/store';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -42,7 +43,7 @@ type CredentialsFormValues = z.infer<typeof credentialsSchema>;
 
 export function Login() {
     const navigate = useNavigate();
-    const { login, setSubdomain, isLoading, error, clearError } = useAuthStore();
+    const { login, setSubdomain, isLoading, clearError } = useAuthStore();
     const [step, setStep] = useState<'org' | 'credentials'>(
         localStorage.getItem('subdomain') ? 'credentials' : 'org'
     );
@@ -93,8 +94,13 @@ export function Login() {
             }
 
             navigate('/chat');
-        } catch {
-            // Error is handled in store
+        } catch (err: unknown) {
+            let errorMsg = 'Login failed. Please check your credentials.';
+            if (err && typeof err === 'object' && 'response' in err) {
+                const axiosError = err as { response?: { data?: { error?: string } } };
+                errorMsg = axiosError.response?.data?.error || errorMsg;
+            }
+            toast.error(errorMsg);
         }
     };
 
@@ -231,11 +237,6 @@ export function Login() {
                             <CardContent>
                                 <Form {...credentialsForm}>
                                     <form onSubmit={credentialsForm.handleSubmit(handleLogin)} className="space-y-6">
-                                        {error && (
-                                            <div className="p-3 rounded-lg bg-destructive/10 border border-destructive/20 text-destructive text-sm animate-in fade-in slide-in-from-top-2">
-                                                {error}
-                                            </div>
-                                        )}
 
                                         <FormField
                                             control={credentialsForm.control}

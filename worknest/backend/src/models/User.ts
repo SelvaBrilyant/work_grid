@@ -11,9 +11,28 @@ export interface IUser extends Document {
   role: UserRole;
   status: UserStatus;
   avatar?: string;
+  tokenVersion: number;
   invitationToken?: string;
   invitationExpires?: Date;
   lastSeenAt: Date;
+  statusMessage?: string;
+  settings?: {
+    preferences: {
+      language: string;
+      timezone: string;
+      theme: "light" | "dark" | "system";
+    };
+    notifications: {
+      messages: boolean;
+      mentions: boolean;
+      email: boolean;
+    };
+    privacy: {
+      showOnlineStatus: boolean;
+      readReceipts: boolean;
+      lastSeenVisibility: "everyone" | "contacts" | "none";
+    };
+  };
   createdAt: Date;
   updatedAt: Date;
   comparePassword(candidatePassword: string): Promise<boolean>;
@@ -60,6 +79,10 @@ const userSchema = new Schema<IUser>(
       type: String,
       default: null,
     },
+    tokenVersion: {
+      type: Number,
+      default: 0,
+    },
     invitationToken: {
       type: String,
       default: null,
@@ -73,6 +96,36 @@ const userSchema = new Schema<IUser>(
     lastSeenAt: {
       type: Date,
       default: Date.now,
+    },
+    statusMessage: {
+      type: String,
+      maxlength: [100, "Status message cannot exceed 100 characters"],
+      default: null,
+    },
+    settings: {
+      preferences: {
+        language: { type: String, default: "en" },
+        timezone: { type: String, default: "UTC" },
+        theme: {
+          type: String,
+          enum: ["light", "dark", "system"],
+          default: "system",
+        },
+      },
+      notifications: {
+        messages: { type: Boolean, default: true },
+        mentions: { type: Boolean, default: true },
+        email: { type: Boolean, default: true },
+      },
+      privacy: {
+        showOnlineStatus: { type: Boolean, default: true },
+        readReceipts: { type: Boolean, default: true },
+        lastSeenVisibility: {
+          type: String,
+          enum: ["everyone", "contacts", "none"],
+          default: "everyone",
+        },
+      },
     },
   },
   {

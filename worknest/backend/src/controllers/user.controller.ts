@@ -185,6 +185,44 @@ class UserController {
   }
 
   /**
+   * Delete own account
+   * @route DELETE /api/users/me
+   */
+  async deleteMe(req: AuthenticatedRequest, res: Response): Promise<void> {
+    if (!req.user) {
+      throw new UnauthorizedError("Authentication required.");
+    }
+
+    const { userId, organizationId, role } = req.user;
+
+    // Logic for Admin: cannot delete if there are other members
+    if (role === "ADMIN") {
+      const otherUsersCount = await User.countDocuments({
+        organizationId,
+        _id: { $ne: userId },
+      });
+
+      if (otherUsersCount > 0) {
+        throw new BadRequestError(
+          "You cannot delete your account while there are still other members in your organization. Please remove all members or transfer ownership first."
+        );
+      }
+    }
+
+    // Perform deletion
+    const result = await User.findByIdAndDelete(userId);
+
+    if (!result) {
+      throw new NotFoundError("User not found.");
+    }
+
+    res.json({
+      success: true,
+      message: "Your account has been permanently deleted.",
+    });
+  }
+
+  /**
    * Helper function to check if user is online
    */
   private isUserOnline(lastSeenAt: Date): boolean {

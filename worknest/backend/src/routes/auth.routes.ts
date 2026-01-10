@@ -54,4 +54,15 @@ router.post(
   asyncHandler(authController.activate.bind(authController))
 );
 
+/**
+ * @route   POST /api/auth/change-password
+ * @desc    Change user password
+ * @access  Private
+ */
+router.post(
+  "/change-password",
+  authenticate,
+  asyncHandler(authController.changePassword.bind(authController))
+);
+
 export default router;
