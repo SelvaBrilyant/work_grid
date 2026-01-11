@@ -93,4 +93,14 @@ router.put(
   )
 );
 
+/**
+ * @route   PUT /api/channels/:id/columns
+ * @desc    Update Kanban columns
+ * @access  Private (member only)
+ */
+router.put(
+  "/:id/columns",
+  asyncHandler(channelController.updateColumns.bind(channelController))
+);
+
 export default router;

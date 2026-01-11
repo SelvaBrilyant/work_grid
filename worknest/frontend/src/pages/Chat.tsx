@@ -45,7 +45,7 @@ export function Chat() {
                     {/* Header */}
                     <ChatHeader onOpenGlobalSearch={() => setIsSearchOpen(true)} />
 
-                    <div className="flex-1 flex overflow-hidden">
+                    <div className="flex-1 flex overflow-hidden min-w-0">
                         {/* Messages */}
                         <ChatWindow />
 

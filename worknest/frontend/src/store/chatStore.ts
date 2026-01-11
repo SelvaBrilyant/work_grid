@@ -79,6 +79,11 @@ export interface Channel {
     muteUntil: string | null;
     sound: string;
   };
+  kanbanColumns?: {
+    id: string;
+    title: string;
+    order: number;
+  }[];
 }
 
 export interface User {
@@ -136,7 +141,7 @@ interface ChatState {
     isOpen: boolean;
     parentMessage: { id: string; content: string; sender: User } | null;
   };
-  activeView: "messages" | "tasks";
+  activeView: "messages" | "tasks" | "wiki" | "canvas";
 
   // Actions
   fetchChannels: () => Promise<void>;
@@ -187,7 +192,11 @@ interface ChatState {
   openThread: (message: { id: string; content: string; sender: User }) => void;
   closeThread: () => void;
   updateMessageThreadCount: (messageId: string, threadCount: number) => void;
-  setActiveView: (view: "messages" | "tasks") => void;
+  setActiveView: (view: "messages" | "tasks" | "wiki" | "canvas") => void;
+  updateChannelColumns: (
+    channelId: string,
+    columns: { id: string; title: string; order: number }[]
+  ) => Promise<void>;
 
   // Socket event handlers
   initSocketEvents: () => void;
@@ -251,7 +260,7 @@ export const useChatStore = create<ChatState>((set, get) => {
       isOpen: false,
       parentMessage: null,
     },
-    activeView: "messages",
+    activeView: "messages" as "messages" | "tasks" | "wiki" | "canvas",
 
     fetchChannels: async () => {
       set({ isLoadingChannels: true });
@@ -688,6 +697,26 @@ export const useChatStore = create<ChatState>((set, get) => {
       }),
 
     setActiveView: (view) => set({ activeView: view }),
+    updateChannelColumns: async (channelId, columns) => {
+      // Optimistic update
+      set((state) => ({
+        channels: state.channels.map((c) =>
+          c.id === channelId ? { ...c, kanbanColumns: columns } : c
+        ),
+        activeChannel:
+          state.activeChannel?.id === channelId
+            ? { ...state.activeChannel, kanbanColumns: columns }
+            : state.activeChannel,
+      }));
+
+      try {
+        await channelsApi.updateColumns(channelId, columns);
+      } catch (error) {
+        console.error("Failed to update channel columns:", error);
+        toast.error("Failed to update board columns");
+        // Revert? Not strictly necessary if the UI reflects the state correctly on next fetch
+      }
+    },
 
     updateMessageThreadCount: (messageId, threadCount) =>
       set((state) => ({

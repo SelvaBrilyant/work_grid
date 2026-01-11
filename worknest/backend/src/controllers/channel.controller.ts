@@ -31,7 +31,8 @@ class ChannelController {
       userId: req.user.userId,
     }).populate({
       path: "channelId",
-      select: "name description type createdBy lastMessageAt dmParticipants",
+      select:
+        "name description type createdBy lastMessageAt dmParticipants kanbanColumns",
     });
 
     // Format channels
@@ -98,6 +99,7 @@ class ChannelController {
             : null,
           role: membership.role,
           joinedAt: membership.joinedAt,
+          kanbanColumns: channel.kanbanColumns || [],
         };
       })
     );
@@ -274,6 +276,7 @@ class ChannelController {
         description: channel.description,
         type: channel.type,
         createdAt: channel.createdAt,
+        kanbanColumns: channel.kanbanColumns || [],
         members: members.map((m) => ({
           user: m.userId,
           role: m.role,
@@ -694,6 +697,45 @@ class ChannelController {
       success: true,
       data: membership.notifications,
       message: "Channel notification settings updated.",
+    });
+  }
+
+  /**
+   * Update Kanban columns
+   * @route PUT /api/channels/:id/columns
+   */
+  async updateColumns(req: AuthenticatedRequest, res: Response): Promise<void> {
+    if (!req.user) {
+      throw new UnauthorizedError("Authentication required.");
+    }
+
+    const { id } = req.params;
+    const { columns } = req.body;
+
+    // Verify membership
+    const membership = await ChannelMember.findOne({
+      channelId: id,
+      userId: req.user.userId,
+    });
+
+    if (!membership) {
+      throw new ForbiddenError("You are not a member of this channel.");
+    }
+
+    const channel = await Channel.findByIdAndUpdate(
+      id,
+      { kanbanColumns: columns },
+      { new: true }
+    );
+
+    if (!channel) {
+      throw new NotFoundError("Channel not found.");
+    }
+
+    res.json({
+      success: true,
+      data: channel.kanbanColumns,
+      message: "Kanban columns updated.",
     });
   }
 }

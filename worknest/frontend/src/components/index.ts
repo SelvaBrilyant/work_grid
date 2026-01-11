@@ -8,3 +8,5 @@ export { ThreadPanel } from "./ThreadPanel";
 export { GlobalSearchModal } from "./GlobalSearchModal";
 export { VoiceMessage } from "./VoiceMessage";
 export { KanbanBoard } from "./KanbanBoard";
+export { WikiView } from "./wiki/WikiView";
+export { CanvasView } from "./CanvasView";

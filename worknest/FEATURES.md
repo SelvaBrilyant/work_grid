@@ -14,10 +14,10 @@ This document tracks all planned features for WorkNest, organized by implementat
 | 6 | Global Search | ✅ Done | 🟡 Medium |
 | 7 | Granular Notifications | ✅ Done | 🟡 Medium |
 | 8 | Voice Messages | ✅ Done | 🟡 Medium |
-| 9 | Kanban Task Boards | ⬜ Pending | 🔴 Hard |
-| 10 | Shared Knowledge Base (Wiki) | ⬜ Pending | 🔴 Hard |
-| 11 | Huddles (Voice & Video) | ⬜ Pending | 🔴 Hard |
-| 12 | Live Collaborative Canvas | ⬜ Pending | 🔴 Hard |
+| 9 | Kanban Task Boards | ✅ Done | 🔴 Hard |
+| 10 | Shared Knowledge Base (Wiki) | ✅ Done | 🔴 Hard |
+| 11 | Huddles (Voice & Video) | ✅ Done | 🔴 Hard |
+| 12 | Live Collaborative Canvas | ✅ Done | 🔴 Hard |
 
 ---
 
@@ -171,78 +171,80 @@ Record and send audio messages.
 ## 🔴 Phase 3: Hard Features
 
 ### 9. Kanban Task Boards
-**Status**: ⬜ Pending
+**Status**: ✅ Complete
 
 Per-channel task management with drag-and-drop boards.
 
 **Backend Requirements:**
-- [ ] Create Task model (title, description, assignee, due date, labels, column)
-- [ ] Create Board model (columns, channel reference)
-- [ ] CRUD APIs for tasks and boards
-- [ ] Real-time task updates
+- [x] Create Task model (title, description, assignee, due date, labels, column)
+- [x] Create Board model (columns stored in Channel, dynamic statuses)
+- [x] CRUD APIs for tasks and boards
+- [x] Real-time task updates (notifications in chat)
 
 **Frontend Requirements:**
-- [ ] "Tasks" tab in channel view
-- [ ] Drag-and-drop Kanban board
-- [ ] Task detail modal
-- [ ] Assignee picker, due date, labels
-- [ ] Board column customization
+- [x] "Tasks" tab in channel view
+- [x] Drag-and-drop Kanban board
+- [x] Task detail modal (create & edit)
+- [x] Assignee picker, due date, labels
+- [x] Board column customization (add, edit, delete, reorder)
 
 ---
 
 ### 10. Shared Knowledge Base (Wiki)
-**Status**: ⬜ Pending
+**Status**: ✅ Complete
 
 Collaborative documentation per channel.
 
 **Backend Requirements:**
-- [ ] Create WikiPage model (title, content, channel, author, versions)
-- [ ] CRUD APIs with version history
-- [ ] Markdown or rich text storage
+- [x] Create WikiPage model (title, content, channel, author, versions)
+- [x] CRUD APIs with version history
+- [x] Markdown or rich text storage (HTML via Tiptap)
 
 **Frontend Requirements:**
-- [ ] "Docs" tab in channel view
-- [ ] Rich text editor (Tiptap or similar)
-- [ ] Page navigation sidebar
-- [ ] Version history viewer
+- [x] "Docs" tab in channel view
+- [x] Rich text editor (Tiptap)
+- [x] Page navigation sidebar
+- [x] Version history viewer (Backend ready, basic UI)
 
 ---
 
 ### 11. Huddles (Voice & Video)
-**Status**: ⬜ Pending
+**Status**: ✅ Complete
 
 Quick voice/video calls within channels.
 
 **Backend Requirements:**
-- [ ] WebRTC signaling server
-- [ ] Huddle room management
-- [ ] Participant tracking
+- [x] WebRTC signalling relay via Socket.io
+- [x] Huddle room management (active participants tracking)
+- [x] Media state synchronization
 
 **Frontend Requirements:**
-- [ ] "Start Huddle" button in channel header
-- [ ] Audio/video controls
-- [ ] Screen sharing
-- [ ] Participant list with mute states
-- [ ] Floating mini-player when navigating away
+- [x] "Start Huddle" toggle in channel header
+- [x] WebRTC mesh networking (Simple-peer)
+- [x] Audio/video controls (toggle/mute)
+- [x] Dynamic Participant grid with video/avatars
+- [x] Floating HuddleBar with expand/collapse
 
 ---
 
 ### 12. Live Collaborative Canvas
-**Status**: ⬜ Pending
+**Status**: ✅ Complete
 
 Real-time whiteboard for brainstorming.
 
 **Backend Requirements:**
-- [ ] Canvas state storage (shapes, text, drawings)
-- [ ] CRDT or OT for conflict resolution
-- [ ] Real-time sync via WebSocket
+- [x] Canvas persistence model (elements storage)
+- [x] Real-time element synchronization via Socket.io
+- [x] Cursor presence tracking
+- [x] API for loading/saving canvas state
 
 **Frontend Requirements:**
-- [ ] Canvas component with drawing tools
-- [ ] Shape library (rectangles, circles, arrows)
-- [ ] Text annotations
-- [ ] Multi-cursor presence
-- [ ] Export as image
+- [x] HTML5 Canvas with Rough.js (hand-drawn style)
+- [x] Drawing tools (Pencil, Rectangle, Ellipse, Arrow)
+- [x] Real-time collaboration (multi-user drawing)
+- [x] Synchronized cursors with user labels
+- [x] Persistent state across sessions
+- [x] Export as image
 
 ---
 

@@ -10,6 +10,11 @@ export interface IChannel extends Document {
   createdBy: mongoose.Types.ObjectId;
   dmParticipants?: mongoose.Types.ObjectId[]; // For DM channels
   lastMessageAt?: Date;
+  kanbanColumns?: {
+    id: string;
+    title: string;
+    order: number;
+  }[];
   createdAt: Date;
   updatedAt: Date;
 }
@@ -54,6 +59,14 @@ const channelSchema = new Schema<IChannel>(
       type: Date,
       default: null,
     },
+    kanbanColumns: [
+      {
+        _id: false,
+        id: String,
+        title: String,
+        order: Number,
+      },
+    ],
   },
   {
     timestamps: true,

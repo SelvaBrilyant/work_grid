@@ -113,6 +113,10 @@ export const channelsApi = {
       sound?: string;
     }
   ) => api.put(`/channels/${id}/notifications`, data),
+  updateColumns: (
+    id: string,
+    columns: { id: string; title: string; order: number }[]
+  ) => api.put(`/channels/${id}/columns`, { columns }),
 };
 
 // Messages API
@@ -243,6 +247,41 @@ export const searchApi = {
     limit?: number;
   }) => api.get("/search", { params }),
   getHistory: () => api.get("/search/history"),
+};
+
+// Wiki API
+export const wikiApi = {
+  getChannelPages: (channelId: string) => api.get(`/wiki/channel/${channelId}`),
+
+  getPage: (channelId: string, slug: string) =>
+    api.get(`/wiki/channel/${channelId}/${slug}`),
+
+  createPage: (
+    channelId: string,
+    data: { title: string; content?: string; parentId?: string }
+  ) => api.post(`/wiki/channel/${channelId}`, data),
+
+  updatePage: (
+    channelId: string,
+    slug: string,
+    data: { title?: string; content?: string; versionSummary?: string }
+  ) => api.patch(`/wiki/channel/${channelId}/${slug}`, data),
+
+  deletePage: (channelId: string, slug: string) =>
+    api.delete(`/wiki/channel/${channelId}/${slug}`),
+
+  getVersions: (channelId: string, slug: string) =>
+    api.get(`/wiki/channel/${channelId}/${slug}/versions`),
+
+  restoreVersion: (channelId: string, slug: string, versionId: string) =>
+    api.post(
+      `/wiki/channel/${channelId}/${slug}/versions/${versionId}/restore`
+    ),
+
+  reorderPages: (
+    channelId: string,
+    pages: { id: string; parentId: string | null; order: number }[]
+  ) => api.post(`/wiki/channel/${channelId}/reorder`, { pages }),
 };
 
 export default api;

@@ -6,8 +6,7 @@ import { getSocket } from '@/lib/socket';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { MessageBubble } from '@/components/MessageBubble';
-import { KanbanBoard } from '@/components/KanbanBoard';
+import { KanbanBoard, WikiView, CanvasView, MessageBubble } from '@/components';
 import {
     DropdownMenu,
     DropdownMenuContent,
@@ -523,9 +522,19 @@ export function ChatWindow() {
     }
 
     return (
-        <div className="flex-1 flex flex-col bg-background">
+        <div className="flex-1 flex flex-col bg-background min-w-0 overflow-hidden">
             {activeView === 'tasks' ? (
-                <KanbanBoard />
+                <div className="flex-1 min-w-0 overflow-hidden">
+                    <KanbanBoard />
+                </div>
+            ) : activeView === 'wiki' ? (
+                <div className="flex-1 min-w-0 overflow-hidden">
+                    <WikiView />
+                </div>
+            ) : activeView === 'canvas' ? (
+                <div className="flex-1 min-w-0 overflow-hidden">
+                    <CanvasView />
+                </div>
             ) : (
                 <>
                     {/* Messages Area */}

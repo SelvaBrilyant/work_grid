@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
-import { Hash, Lock, MoreVertical, Phone, Video, Users, Info, Trash2, Search, X } from 'lucide-react';
+import { Hash, Lock, MoreVertical, Phone, Video, Users, Info, Trash2, Search, X, Headphones } from 'lucide-react';
 import { useChatStore, useAuthStore } from '@/store';
+import { useHuddleStore } from '@/store/huddleStore';
 import { cn, getInitials, getAvatarColor } from '@/lib/utils';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
@@ -19,7 +20,8 @@ interface ChatHeaderProps {
 }
 
 export function ChatHeader({ onOpenGlobalSearch }: ChatHeaderProps) {
-    const { activeChannel, onlineUsers, deleteChannel, setActiveChannel, openDetails, searchMessages, searchResults } = useChatStore();
+    const { activeChannel, onlineUsers, deleteChannel, setActiveChannel, openDetails, searchMessages, searchResults, activeView, setActiveView } = useChatStore();
+    const { isInHuddle, activeChannelId, joinHuddle, leaveHuddle } = useHuddleStore();
     const { user } = useAuthStore();
     const [isSearchOpen, setIsSearchOpen] = useState(false);
     const [searchQuery, setSearchQuery] = useState('');
@@ -115,11 +117,11 @@ export function ChatHeader({ onOpenGlobalSearch }: ChatHeaderProps) {
                                 <button
                                     onClick={(e) => {
                                         e.stopPropagation();
-                                        useChatStore.getState().setActiveView('messages');
+                                        setActiveView('messages');
                                     }}
                                     className={cn(
                                         "px-2 py-0.5 text-[10px] font-bold rounded-md transition-all",
-                                        useChatStore.getState().activeView === 'messages'
+                                        activeView === 'messages'
                                             ? "bg-background shadow-sm text-primary"
                                             : "text-muted-foreground hover:text-foreground"
                                     )}
@@ -129,16 +131,44 @@ export function ChatHeader({ onOpenGlobalSearch }: ChatHeaderProps) {
                                 <button
                                     onClick={(e) => {
                                         e.stopPropagation();
-                                        useChatStore.getState().setActiveView('tasks');
+                                        setActiveView('tasks');
                                     }}
                                     className={cn(
                                         "px-2 py-0.5 text-[10px] font-bold rounded-md transition-all",
-                                        useChatStore.getState().activeView === 'tasks'
+                                        activeView === 'tasks'
                                             ? "bg-background shadow-sm text-primary"
                                             : "text-muted-foreground hover:text-foreground"
                                     )}
                                 >
-                                    Board
+                                    Tasks
+                                </button>
+                                <button
+                                    onClick={(e) => {
+                                        e.stopPropagation();
+                                        setActiveView('wiki');
+                                    }}
+                                    className={cn(
+                                        "px-2 py-0.5 text-[10px] font-bold rounded-md transition-all",
+                                        activeView === 'wiki'
+                                            ? "bg-background shadow-sm text-primary"
+                                            : "text-muted-foreground hover:text-foreground"
+                                    )}
+                                >
+                                    Docs
+                                </button>
+                                <button
+                                    onClick={(e) => {
+                                        e.stopPropagation();
+                                        setActiveView('canvas');
+                                    }}
+                                    className={cn(
+                                        "px-2 py-0.5 text-[10px] font-bold rounded-md transition-all",
+                                        activeView === 'canvas'
+                                            ? "bg-background shadow-sm text-primary"
+                                            : "text-muted-foreground hover:text-foreground"
+                                    )}
+                                >
+                                    Canvas
                                 </button>
                             </div>
                         ) : (
@@ -162,6 +192,40 @@ export function ChatHeader({ onOpenGlobalSearch }: ChatHeaderProps) {
 
             {/* Actions */}
             <div className="flex items-center gap-1">
+                {/* Huddle Toggle */}
+                {activeChannel.type !== 'DM' && (
+                    <Tooltip>
+                        <TooltipTrigger asChild>
+                            <Button
+                                variant={isInHuddle && activeChannelId === activeChannel.id ? "default" : "ghost"}
+                                size="icon"
+                                className={cn(
+                                    "h-8 w-8 rounded-full transition-all duration-300",
+                                    isInHuddle && activeChannelId === activeChannel.id
+                                        ? "bg-primary text-white hover:bg-primary/90 shadow-lg scale-110"
+                                        : "hover:bg-muted"
+                                )}
+                                onClick={() => {
+                                    if (isInHuddle && activeChannelId === activeChannel.id) {
+                                        leaveHuddle();
+                                    } else {
+                                        joinHuddle(activeChannel.id);
+                                    }
+                                }}
+                            >
+                                <Headphones className={cn(
+                                    "h-4 w-4",
+                                    isInHuddle && activeChannelId === activeChannel.id && "animate-pulse"
+                                )} />
+                            </Button>
+                        </TooltipTrigger>
+                        <TooltipContent>
+                            {isInHuddle && activeChannelId === activeChannel.id ? "Leave Huddle" : "Start Huddle"}
+                        </TooltipContent>
+                    </Tooltip>
+                )}
+
+                {/* DM Call Buttons */}
                 {activeChannel.type === 'DM' && (
                     <>
                         <Tooltip>

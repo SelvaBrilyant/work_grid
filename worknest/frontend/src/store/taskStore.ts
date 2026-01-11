@@ -1,16 +1,11 @@
 import { create } from "zustand";
-import axios from "axios";
-
-const api = axios.create({
-  baseURL: "http://localhost:5000/api",
-  withCredentials: true,
-});
+import { api } from "@/lib/api";
 
 export interface Task {
   _id: string;
   title: string;
   description?: string;
-  status: "todo" | "in-progress" | "review" | "done";
+  status: string;
   priority: "low" | "medium" | "high" | "urgent";
   channelId: string;
   creatorId: {
@@ -50,7 +45,10 @@ export const useTaskStore = create<TaskState>((set, get) => ({
   fetchTasks: async (channelId: string) => {
     set({ isLoading: true, error: null });
     try {
-      const response = await api.get(`/tasks/channel/${channelId}`);
+      const subdomain = localStorage.getItem("subdomain");
+      const response = await api.get(`/tasks/channel/${channelId}`, {
+        params: { subdomain },
+      });
       set({ tasks: response.data, isLoading: false });
     } catch (error: unknown) {
       set({
@@ -62,7 +60,11 @@ export const useTaskStore = create<TaskState>((set, get) => ({
 
   createTask: async (channelId: string, taskData: Partial<Task>) => {
     try {
-      const response = await api.post(`/tasks/channel/${channelId}`, taskData);
+      const subdomain = localStorage.getItem("subdomain");
+      const response = await api.post(`/tasks/channel/${channelId}`, {
+        ...taskData,
+        subdomain,
+      });
       set({ tasks: [...get().tasks, response.data] });
     } catch (error: unknown) {
       set({ error: error instanceof Error ? error.message : "Unknown error" });
@@ -79,7 +81,11 @@ export const useTaskStore = create<TaskState>((set, get) => ({
     });
 
     try {
-      const response = await api.patch(`/tasks/${taskId}`, updates);
+      const subdomain = localStorage.getItem("subdomain");
+      const response = await api.patch(`/tasks/${taskId}`, {
+        ...updates,
+        subdomain,
+      });
       set({
         tasks: get().tasks.map((t) => (t._id === taskId ? response.data : t)),
       });
@@ -93,7 +99,10 @@ export const useTaskStore = create<TaskState>((set, get) => ({
 
   deleteTask: async (taskId: string) => {
     try {
-      await api.delete(`/tasks/${taskId}`);
+      const subdomain = localStorage.getItem("subdomain");
+      await api.delete(`/tasks/${taskId}`, {
+        params: { subdomain },
+      });
       set({ tasks: get().tasks.filter((t) => t._id !== taskId) });
     } catch (error: unknown) {
       set({ error: error instanceof Error ? error.message : "Unknown error" });
@@ -116,7 +125,8 @@ export const useTaskStore = create<TaskState>((set, get) => ({
     set({ tasks: newTasks.sort((a, b) => a.order - b.order) });
 
     try {
-      await api.post("/tasks/reorder", { tasks: taskUpdates });
+      const subdomain = localStorage.getItem("subdomain");
+      await api.post("/tasks/reorder", { tasks: taskUpdates, subdomain });
     } catch (error: unknown) {
       set({
         tasks: previousTasks,

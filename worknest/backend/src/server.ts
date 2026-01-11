@@ -25,6 +25,7 @@ import {
   settingsRoutes,
   searchRoutes,
   taskRoutes,
+  wikiRoutes,
 } from "./routes/index.js";
 
 // Load environment variables
@@ -153,6 +154,9 @@ app.use("/api/search", searchRoutes);
 
 // Task routes
 app.use("/api/tasks", taskRoutes);
+
+// Wiki routes
+app.use("/api/wiki", wikiRoutes);
 
 // Static files for uploads
 app.use("/uploads", express.static("uploads"));

@@ -5,7 +5,7 @@ import mongoose from "mongoose";
 export const getChannelTasks = async (req: Request, res: Response) => {
   try {
     const { channelId } = req.params;
-    const userId = (req as any).user.id;
+    const userId = (req as any).user.userId;
 
     // Check if user is member of the channel
     const isMember = await ChannelMember.findOne({
@@ -42,7 +42,7 @@ export const createTask = async (req: Request, res: Response) => {
       dueDate,
       labels,
     } = req.body;
-    const userId = (req as any).user.id;
+    const userId = (req as any).user.userId;
     const organizationId = (req as any).user.organizationId;
 
     // Check if user is member of the channel
@@ -92,7 +92,7 @@ export const updateTask = async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
     const updates = req.body;
-    const userId = (req as any).user.id;
+    const userId = (req as any).user.userId;
 
     const task = await Task.findById(id);
     if (!task) {
@@ -133,7 +133,7 @@ export const updateTask = async (req: Request, res: Response) => {
 export const deleteTask = async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
-    const userId = (req as any).user.id;
+    const userId = (req as any).user.userId;
 
     const task = await Task.findById(id);
     if (!task) {

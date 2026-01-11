@@ -12,3 +12,9 @@ export {
 } from "./ChannelMember.js";
 export { default as Message, IMessage, IMessageModel } from "./Message.js";
 export { default as Task, ITask } from "./Task.js";
+export {
+  default as WikiPage,
+  IWikiPage,
+  IWikiPageVersion,
+} from "./WikiPage.js";
+export { Canvas, ICanvas, ICanvasElement } from "./Canvas.js";

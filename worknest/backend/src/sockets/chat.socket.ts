@@ -7,6 +7,8 @@ import xss from "xss";
 const onlineUsers = new Map<string, Set<string>>(); // organizationId -> Set of userIds
 const userSockets = new Map<string, string>(); // socketId -> { odiv, orgId }
 const typingUsers = new Map<string, Map<string, NodeJS.Timeout>>(); // channelId -> userId -> timeout
+const activeHuddles = new Map<string, Set<string>>(); // channelId -> Set of userIds (who are in huddle)
+const canvasCursors = new Map<string, Map<string, any>>(); // channelId -> userId -> cursor data
 
 export const initializeChatSocket = (io: Server): void => {
   io.on("connection", async (socket: AuthenticatedSocket) => {
@@ -522,6 +524,120 @@ export const initializeChatSocket = (io: Server): void => {
         socket.emit("error", { message: "Failed to update reaction" });
       }
     });
+
+    // === HUDDLE EVENTS ===
+    socket.on("huddle:join", async (data: { channelId: string }) => {
+      const { channelId } = data;
+      console.log(`User ${userId} joining huddle in ${channelId}`);
+
+      if (!activeHuddles.has(channelId)) {
+        activeHuddles.set(channelId, new Set());
+      }
+      activeHuddles.get(channelId)!.add(userId);
+
+      socket.join(`huddle:${channelId}`);
+
+      // Notify others in the huddle that a new user joined
+      socket.to(`huddle:${channelId}`).emit("huddle:user-joined", {
+        userId,
+        peerId: socket.id, // We'll use socket.id as peer identifier for simplicity
+      });
+
+      // Send list of current participants to the joining user
+      const participants = Array.from(activeHuddles.get(channelId) || []);
+      socket.emit("huddle:participants", {
+        participants: participants.filter((id) => id !== userId),
+      });
+    });
+
+    socket.on("huddle:leave", (data: { channelId: string }) => {
+      const { channelId } = data;
+      console.log(`User ${userId} leaving huddle in ${channelId}`);
+
+      if (activeHuddles.has(channelId)) {
+        activeHuddles.get(channelId)!.delete(userId);
+        if (activeHuddles.get(channelId)!.size === 0) {
+          activeHuddles.delete(channelId);
+        }
+      }
+
+      socket.leave(`huddle:${channelId}`);
+      socket.to(`huddle:${channelId}`).emit("huddle:user-left", { userId });
+    });
+
+    socket.on(
+      "huddle:signal",
+      (data: { to: string; from: string; signal: any; channelId: string }) => {
+        // Relay WebRTC signaling data
+        socket.to(`user:${data.to}`).emit("huddle:signal", {
+          from: userId,
+          signal: data.signal,
+          channelId: data.channelId,
+        });
+      }
+    );
+
+    socket.on(
+      "huddle:toggle-media",
+      (data: { channelId: string; audio: boolean; video: boolean }) => {
+        socket.to(`huddle:${data.channelId}`).emit("huddle:media-state", {
+          userId,
+          audio: data.audio,
+          video: data.video,
+        });
+      }
+    );
+
+    // === CANVAS EVENTS ===
+    socket.on("canvas:join", (data: { channelId: string }) => {
+      const { channelId } = data;
+      socket.join(`canvas:${channelId}`);
+    });
+
+    socket.on("canvas:leave", (data: { channelId: string }) => {
+      const { channelId } = data;
+      socket.leave(`canvas:${channelId}`);
+
+      // Cleanup cursor
+      if (canvasCursors.has(channelId)) {
+        canvasCursors.get(channelId)!.delete(userId);
+        socket.to(`canvas:${channelId}`).emit("canvas:cursor-update", {
+          userId,
+          cursor: null,
+        });
+      }
+    });
+
+    socket.on(
+      "canvas:cursor-move",
+      (data: { channelId: string; x: number; y: number; name: string }) => {
+        const { channelId, x, y, name } = data;
+
+        if (!canvasCursors.has(channelId)) {
+          canvasCursors.set(channelId, new Map());
+        }
+
+        const cursorData = { x, y, name, updatedAt: Date.now() };
+        canvasCursors.get(channelId)!.set(userId, cursorData);
+
+        socket.to(`canvas:${channelId}`).emit("canvas:cursor-update", {
+          userId,
+          cursor: cursorData,
+        });
+      }
+    );
+
+    socket.on(
+      "canvas:element-update",
+      (data: { channelId: string; elements: any[] }) => {
+        const { channelId, elements } = data;
+        // Broadcast to others in the same canvas
+        socket.to(`canvas:${channelId}`).emit("canvas:elements-received", {
+          elements,
+          senderId: userId,
+        });
+      }
+    );
 
     // === DISCONNECT ===
     socket.on("disconnect", async () => {

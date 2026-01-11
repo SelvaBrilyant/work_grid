@@ -3,6 +3,7 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { useAuthStore } from '@/store';
 import { Login, Register, Chat, AcceptInvite, AuthCallback, Settings } from '@/pages';
 import { Toaster } from '@/components/ui/sonner';
+import { HuddleBar } from '@/components/HuddleBar';
 
 // Protected Route Component
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
@@ -138,6 +139,7 @@ function App() {
         <Route path="*" element={<Navigate to="/chat" replace />} />
       </Routes>
       <Toaster position="top-right" expand={false} richColors />
+      <HuddleBar />
     </BrowserRouter>
   );
 }

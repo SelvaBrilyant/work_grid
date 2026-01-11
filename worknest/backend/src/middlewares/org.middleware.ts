@@ -37,6 +37,8 @@ export const extractSubdomain = async (
         subdomain =
           (
             (req.query.org as string) ||
+            (req.query.subdomain as string) ||
+            (req.body.subdomain as string) ||
             (req.headers["x-subdomain"] as string) ||
             null
           )?.toLowerCase() || null;

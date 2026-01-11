@@ -6,3 +6,5 @@ export { default as uploadRoutes } from "./upload.routes.js";
 export { default as settingsRoutes } from "./settings.routes.js";
 export { default as searchRoutes } from "./search.routes.js";
 export { default as taskRoutes } from "./task.routes.js";
+export { default as wikiRoutes } from "./wiki.routes.js";
+export { default as canvasRoutes } from "./canvas.routes.js";
