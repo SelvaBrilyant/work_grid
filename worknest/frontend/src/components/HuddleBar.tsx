@@ -172,8 +172,8 @@ function HuddleVideoItem({
 
     return (
         <div className="relative aspect-video bg-black rounded-xl overflow-hidden border border-border/50 group shadow-lg">
-            {isVideoOff || !stream ? (
-                <div className="absolute inset-0 flex flex-col items-center justify-center gap-4 bg-muted/20 backdrop-blur-sm">
+            {(!stream || (isVideoOff && !isLocal)) && (
+                <div className="absolute inset-0 flex flex-col items-center justify-center gap-4 bg-muted/20 backdrop-blur-sm z-10">
                     <Avatar className="h-16 w-16 md:h-20 md:w-20 border-4 border-background shadow-xl">
                         <AvatarImage src={avatar} />
                         <AvatarFallback className={cn("text-xl", getAvatarColor(name))}>
@@ -185,7 +185,9 @@ function HuddleVideoItem({
                         <span className="text-xs font-medium">{name}</span>
                     </div>
                 </div>
-            ) : (
+            )}
+
+            {stream && (
                 <>
                     <video
                         ref={videoRef}
@@ -194,10 +196,11 @@ function HuddleVideoItem({
                         muted={isLocal}
                         className={cn(
                             "w-full h-full object-cover",
-                            isLocal && "scale-x-[-1]"
+                            isLocal && "scale-x-[-1]",
+                            isVideoOff && "opacity-0 invisible"
                         )}
                     />
-                    <div className="absolute bottom-2 left-2 flex items-center gap-2 bg-black/50 backdrop-blur-md px-2 py-1 rounded-md border border-white/10">
+                    <div className="absolute bottom-2 left-2 flex items-center gap-2 bg-black/50 backdrop-blur-md px-2 py-1 rounded-md border border-white/10 z-20">
                         <span className="text-[10px] font-medium text-white">{name}</span>
                         {isMuted && <MicOff className="h-3 w-3 text-destructive" />}
                     </div>

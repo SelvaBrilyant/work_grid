@@ -21,7 +21,7 @@ interface ChatHeaderProps {
 
 export function ChatHeader({ onOpenGlobalSearch }: ChatHeaderProps) {
     const { activeChannel, onlineUsers, deleteChannel, setActiveChannel, openDetails, searchMessages, searchResults, activeView, setActiveView } = useChatStore();
-    const { isInHuddle, activeChannelId, joinHuddle, leaveHuddle } = useHuddleStore();
+    const { isInHuddle, activeChannelId, joinHuddle, leaveHuddle, activeHuddlesIds } = useHuddleStore();
     const { user } = useAuthStore();
     const [isSearchOpen, setIsSearchOpen] = useState(false);
     const [searchQuery, setSearchQuery] = useState('');
@@ -194,35 +194,49 @@ export function ChatHeader({ onOpenGlobalSearch }: ChatHeaderProps) {
             <div className="flex items-center gap-1">
                 {/* Huddle Toggle */}
                 {activeChannel.type !== 'DM' && (
-                    <Tooltip>
-                        <TooltipTrigger asChild>
-                            <Button
-                                variant={isInHuddle && activeChannelId === activeChannel.id ? "default" : "ghost"}
-                                size="icon"
-                                className={cn(
-                                    "h-8 w-8 rounded-full transition-all duration-300",
-                                    isInHuddle && activeChannelId === activeChannel.id
-                                        ? "bg-primary text-white hover:bg-primary/90 shadow-lg scale-110"
-                                        : "hover:bg-muted"
-                                )}
-                                onClick={() => {
-                                    if (isInHuddle && activeChannelId === activeChannel.id) {
-                                        leaveHuddle();
-                                    } else {
-                                        joinHuddle(activeChannel.id);
-                                    }
-                                }}
-                            >
-                                <Headphones className={cn(
-                                    "h-4 w-4",
-                                    isInHuddle && activeChannelId === activeChannel.id && "animate-pulse"
-                                )} />
-                            </Button>
-                        </TooltipTrigger>
-                        <TooltipContent>
-                            {isInHuddle && activeChannelId === activeChannel.id ? "Leave Huddle" : "Start Huddle"}
-                        </TooltipContent>
-                    </Tooltip>
+                    <div className="flex items-center gap-2 mr-2">
+                        {activeHuddlesIds.get(activeChannel.id) && !isInHuddle && (
+                            <div className="flex items-center gap-2 animate-pulse bg-green-500/10 px-2 py-1 rounded-full border border-green-500/20">
+                                <div className="h-1.5 w-1.5 rounded-full bg-green-500" />
+                                <span className="text-[10px] font-bold text-green-600 uppercase tracking-tight">Active Huddle</span>
+                            </div>
+                        )}
+                        <Tooltip>
+                            <TooltipTrigger asChild>
+                                <Button
+                                    variant={isInHuddle && activeChannelId === activeChannel.id ? "destructive" : (activeHuddlesIds.get(activeChannel.id) ? "default" : "ghost")}
+                                    size="icon"
+                                    className={cn(
+                                        "h-8 w-8 rounded-full transition-all duration-300",
+                                        isInHuddle && activeChannelId === activeChannel.id
+                                            ? "bg-destructive text-white hover:bg-destructive/90 shadow-lg scale-110"
+                                            : activeHuddlesIds.get(activeChannel.id)
+                                                ? "bg-green-500 text-white hover:bg-green-600 shadow-md animate-bounce-subtle"
+                                                : "hover:bg-muted"
+                                    )}
+                                    onClick={() => {
+                                        if (isInHuddle && activeChannelId === activeChannel.id) {
+                                            leaveHuddle();
+                                        } else {
+                                            joinHuddle(activeChannel.id);
+                                        }
+                                    }}
+                                >
+                                    <Headphones className={cn(
+                                        "h-4 w-4",
+                                        (isInHuddle && activeChannelId === activeChannel.id || activeHuddlesIds.get(activeChannel.id)) && "animate-pulse"
+                                    )} />
+                                </Button>
+                            </TooltipTrigger>
+                            <TooltipContent>
+                                {isInHuddle && activeChannelId === activeChannel.id
+                                    ? "Leave Huddle"
+                                    : activeHuddlesIds.get(activeChannel.id)
+                                        ? "Join Active Huddle"
+                                        : "Start Huddle"}
+                            </TooltipContent>
+                        </Tooltip>
+                    </div>
                 )}
 
                 {/* DM Call Buttons */}

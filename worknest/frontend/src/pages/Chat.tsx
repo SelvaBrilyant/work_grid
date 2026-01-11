@@ -1,10 +1,12 @@
 import { useEffect, useState } from 'react';
 import { useChatStore } from '@/store';
+import { useHuddleStore } from '@/store/huddleStore';
 import { Sidebar, ChatHeader, ChatWindow, DetailsPanel, ThreadPanel, GlobalSearchModal } from '@/components';
 import { TooltipProvider } from '@/components/ui/tooltip';
 
 export function Chat() {
     const { fetchChannels, initSocketEvents, detailsPanel, threadPanel } = useChatStore();
+    const { listenForGlobalHuddles } = useHuddleStore();
     const [isSearchOpen, setIsSearchOpen] = useState(false);
 
     useEffect(() => {
@@ -13,7 +15,8 @@ export function Chat() {
 
         // Initialize socket event listeners
         initSocketEvents();
-    }, [fetchChannels, initSocketEvents]);
+        listenForGlobalHuddles();
+    }, [fetchChannels, initSocketEvents, listenForGlobalHuddles]);
 
     // Keyboard shortcut listener (Cmd/Ctrl + K)
     useEffect(() => {

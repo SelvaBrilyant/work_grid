@@ -11,8 +11,10 @@ import {
     Search,
     UserPlus,
     Mail,
+    Headphones,
 } from 'lucide-react';
 import { useAuthStore, useChatStore } from '@/store';
+import { useHuddleStore } from '@/store/huddleStore';
 import { cn, getInitials, getAvatarColor } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -42,6 +44,7 @@ export function Sidebar() {
     const navigate = useNavigate();
     const { user, organization, logout } = useAuthStore();
     const { channels, activeChannel, setActiveChannel, onlineUsers, createChannel, fetchUsers, users, createDM } = useChatStore();
+    const { activeHuddlesIds } = useHuddleStore();
     const [isCreateChannelOpen, setIsCreateChannelOpen] = useState(false);
     const [isDirectMessageOpen, setIsDirectMessageOpen] = useState(false);
     const [newChannelName, setNewChannelName] = useState('');
@@ -148,8 +151,11 @@ export function Sidebar() {
                 ) : (
                     <Hash className="h-4 w-4 opacity-60" />
                 )}
-                <span className="truncate flex-1 text-left">
+                <span className="truncate flex-1 text-left flex items-center gap-2">
                     {channel.type === 'DM' ? channel.dmUser?.name || 'Direct Message' : channel.name}
+                    {activeHuddlesIds.get(channel.id) && (
+                        <Headphones className="h-3 w-3 text-green-500 animate-pulse" />
+                    )}
                 </span>
                 {channel.unreadCount ? (
                     <span className="flex items-center justify-center h-5 min-w-[20px] px-1.5 text-xs font-bold bg-primary text-primary-foreground rounded-full">

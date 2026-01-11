@@ -1,6 +1,8 @@
 import { create } from "zustand";
 import Peer from "simple-peer";
 import { getSocket } from "@/lib/socket";
+import { toast } from "sonner";
+import { useChatStore, useAuthStore } from "@/store";
 
 interface HuddleState {
   isInHuddle: boolean;
@@ -11,12 +13,14 @@ interface HuddleState {
   peers: Map<string, Peer.Instance>; // userId -> peer
   isAudioMuted: boolean;
   isVideoMuted: boolean;
+  activeHuddlesIds: Map<string, string[]>; // channelId -> userIds
 
   joinHuddle: (channelId: string) => Promise<void>;
   leaveHuddle: () => void;
   toggleAudio: () => void;
   toggleVideo: () => void;
   initSocketListeners: () => void;
+  listenForGlobalHuddles: () => void;
 }
 
 export const useHuddleStore = create<HuddleState>((set, get) => ({
@@ -28,6 +32,60 @@ export const useHuddleStore = create<HuddleState>((set, get) => ({
   peers: new Map(),
   isAudioMuted: false,
   isVideoMuted: true, // Default video off
+  activeHuddlesIds: new Map(),
+
+  listenForGlobalHuddles: () => {
+    const socket = getSocket();
+    if (!socket) return;
+
+    socket.on("channel-joined", ({ channelId, activeHuddle }) => {
+      set((state) => {
+        const newActiveHuddles = new Map(state.activeHuddlesIds);
+        if (activeHuddle) {
+          newActiveHuddles.set(channelId, activeHuddle);
+        } else {
+          newActiveHuddles.delete(channelId);
+        }
+        return { activeHuddlesIds: newActiveHuddles };
+      });
+    });
+
+    socket.on("huddle:status", ({ channelId, participants, startedBy }) => {
+      set((state) => {
+        const isNewHuddle =
+          !state.activeHuddlesIds.has(channelId) && participants.length > 0;
+
+        if (isNewHuddle && startedBy) {
+          const { user } = useAuthStore.getState();
+          const { channels } = useChatStore.getState();
+          const channel = channels.find((c) => c.id === channelId);
+          if (
+            channel &&
+            channelId !== state.activeChannelId &&
+            startedBy !== user?.id
+          ) {
+            const displayName =
+              channel.type === "DM" ? channel.dmUser?.name : `#${channel.name}`;
+            toast.info(`Huddle started in ${displayName}`, {
+              description: "Join the conversation now!",
+              action: {
+                label: "Join",
+                onClick: () => get().joinHuddle(channelId),
+              },
+            });
+          }
+        }
+
+        const newActiveHuddles = new Map(state.activeHuddlesIds);
+        if (participants && participants.length > 0) {
+          newActiveHuddles.set(channelId, participants);
+        } else {
+          newActiveHuddles.delete(channelId);
+        }
+        return { activeHuddlesIds: newActiveHuddles };
+      });
+    });
+  },
 
   initSocketListeners: () => {
     const socket = getSocket();
@@ -39,11 +97,16 @@ export const useHuddleStore = create<HuddleState>((set, get) => ({
 
       console.log(`User ${userId} joined huddle, initiating peer connection`);
 
-      // We are the initiator for anyone joining after us
       const peer = new Peer({
         initiator: true,
         trickle: false,
         stream: localStream,
+        config: {
+          iceServers: [
+            { urls: "stun:stun.l.google.com:19302" },
+            { urls: "stun:stun1.l.google.com:19302" },
+          ],
+        },
       });
 
       peer.on("signal", (data) => {
@@ -55,11 +118,16 @@ export const useHuddleStore = create<HuddleState>((set, get) => ({
       });
 
       peer.on("stream", (stream) => {
+        console.log(`Received remote stream from ${userId}`);
         set((state) => {
           const newRemoteStreams = new Map(state.remoteStreams);
           newRemoteStreams.set(userId, stream);
           return { remoteStreams: newRemoteStreams };
         });
+      });
+
+      peer.on("error", (err) => {
+        console.error(`Peer error with user ${userId}:`, err);
       });
 
       get().peers.set(userId, peer);
@@ -70,11 +138,17 @@ export const useHuddleStore = create<HuddleState>((set, get) => ({
       let peer = peers.get(from);
 
       if (!peer) {
-        // We respond to signals from others
+        console.log(`Responding to signal from ${from}`);
         peer = new Peer({
           initiator: false,
           trickle: false,
           stream: localStream || undefined,
+          config: {
+            iceServers: [
+              { urls: "stun:stun.l.google.com:19302" },
+              { urls: "stun:stun1.l.google.com:19302" },
+            ],
+          },
         });
 
         peer.on("signal", (data) => {
@@ -86,11 +160,16 @@ export const useHuddleStore = create<HuddleState>((set, get) => ({
         });
 
         peer.on("stream", (stream) => {
+          console.log(`Received remote stream from ${from} (as responder)`);
           set((state) => {
             const newRemoteStreams = new Map(state.remoteStreams);
             newRemoteStreams.set(from, stream);
             return { remoteStreams: newRemoteStreams };
           });
+        });
+
+        peer.on("error", (err) => {
+          console.error(`Peer error with user ${from}:`, err);
         });
 
         peers.set(from, peer);

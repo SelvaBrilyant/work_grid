@@ -79,6 +79,9 @@ export const initializeChatSocket = (io: Server): void => {
         socket.emit("channel-joined", {
           channelId,
           onlineMembers: onlineMemberIds,
+          activeHuddle: activeHuddles.has(channelId)
+            ? Array.from(activeHuddles.get(channelId)!)
+            : null,
         });
       } catch (error) {
         console.error("Join channel error:", error);
@@ -548,6 +551,13 @@ export const initializeChatSocket = (io: Server): void => {
       socket.emit("huddle:participants", {
         participants: participants.filter((id) => id !== userId),
       });
+
+      // Notify the entire channel that huddle status changed
+      io.to(`channel:${channelId}`).emit("huddle:status", {
+        channelId,
+        participants,
+        startedBy: userId,
+      });
     });
 
     socket.on("huddle:leave", (data: { channelId: string }) => {
@@ -563,6 +573,15 @@ export const initializeChatSocket = (io: Server): void => {
 
       socket.leave(`huddle:${channelId}`);
       socket.to(`huddle:${channelId}`).emit("huddle:user-left", { userId });
+
+      // Notify the entire channel that huddle status changed
+      const participants = activeHuddles.has(channelId)
+        ? Array.from(activeHuddles.get(channelId)!)
+        : [];
+      io.to(`channel:${channelId}`).emit("huddle:status", {
+        channelId,
+        participants,
+      });
     });
 
     socket.on(
