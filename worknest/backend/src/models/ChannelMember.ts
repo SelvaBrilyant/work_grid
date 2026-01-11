@@ -9,7 +9,11 @@ export interface IChannelMember extends Document {
   role: ChannelMemberRole;
   lastReadAt?: Date;
   unreadCount: number;
-  notifications: boolean;
+  notifications: {
+    notifyOn: "ALL" | "MENTIONS" | "NONE";
+    muteUntil?: Date;
+    sound?: string;
+  };
   joinedAt: Date;
   createdAt: Date;
   updatedAt: Date;
@@ -47,8 +51,13 @@ const channelMemberSchema = new Schema<IChannelMember>(
       min: 0,
     },
     notifications: {
-      type: Boolean,
-      default: true,
+      notifyOn: {
+        type: String,
+        enum: ["ALL", "MENTIONS", "NONE"],
+        default: "ALL",
+      },
+      muteUntil: { type: Date, default: null },
+      sound: { type: String, default: "default" },
     },
     joinedAt: {
       type: Date,

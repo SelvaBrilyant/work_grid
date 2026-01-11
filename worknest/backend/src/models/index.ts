@@ -11,3 +11,4 @@ export {
   IChannelMemberModel,
 } from "./ChannelMember.js";
 export { default as Message, IMessage, IMessageModel } from "./Message.js";
+export { default as Task, ITask } from "./Task.js";

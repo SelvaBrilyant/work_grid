@@ -150,6 +150,9 @@ export const initializeChatSocket = (io: Server): void => {
               : null;
 
           console.log("🔗 Processed replyTo:", processedReplyTo);
+          console.log("🔗 Attachments type:", typeof attachments);
+          console.log("🔗 Is array:", Array.isArray(attachments));
+          console.log("🔗 Attachments content:", attachments);
 
           // Create message
           const message = await Message.create({
@@ -230,11 +233,134 @@ export const initializeChatSocket = (io: Server): void => {
           // Broadcast to channel room
           io.to(`channel:${channelId}`).emit("receive-message", messageData);
 
-          // Also send notification to org room for sidebar updates
-          socket.to(`org:${organizationId}`).emit("new-message-notification", {
-            channelId,
-            message: messageData,
-          });
+          // === GRANULAR NOTIFICATION LOGIC ===
+          const members = await ChannelMember.find({ channelId }).populate(
+            "userId"
+          );
+
+          for (const member of members) {
+            // Skip sender
+            if (member.userId._id.toString() === userId) continue;
+
+            const targetUser = member.userId as any;
+            const channelSettings = member.notifications;
+            const globalSettings = targetUser.settings?.notifications;
+
+            let shouldAlert = false;
+            let alertReason = "NORMAL";
+
+            // 1. Check Keywords
+            if (globalSettings?.keywords?.length > 0) {
+              const matchedKeyword = globalSettings.keywords.find(
+                (keyword: string) => {
+                  const regex = new RegExp(
+                    `\\b${keyword.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\b`,
+                    "i"
+                  );
+                  return regex.test(content);
+                }
+              );
+              if (matchedKeyword) {
+                shouldAlert = true;
+                alertReason = "KEYWORD";
+              }
+            }
+
+            // 2. Check Direct Mentions (@Name)
+            if (!shouldAlert) {
+              const nameRegex = new RegExp(
+                `@${targetUser.name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\b`,
+                "i"
+              );
+              if (nameRegex.test(content)) {
+                shouldAlert = true;
+                alertReason = "MENTION";
+              }
+            }
+
+            // 3. Check Special Mentions (@channel, @here, @online)
+            if (!shouldAlert) {
+              const hasSpecialMention = /@(channel|here|online)\b/i.test(
+                content
+              );
+              if (hasSpecialMention) {
+                // Determine if special mention applies to this user
+                if (content.toLowerCase().includes("@channel")) {
+                  shouldAlert = true;
+                  alertReason = "MENTION";
+                } else if (
+                  content.toLowerCase().includes("@here") ||
+                  content.toLowerCase().includes("@online")
+                ) {
+                  // Only alert if user is online
+                  const isOnline = onlineUsers
+                    .get(organizationId)
+                    ?.has(targetUser._id.toString());
+                  if (isOnline) {
+                    shouldAlert = true;
+                    alertReason = "MENTION";
+                  }
+                }
+              }
+            }
+
+            // 4. Check Level-based notifications (ALL/MENTIONS/NONE)
+            if (!shouldAlert) {
+              if (channelSettings?.notifyOn === "ALL") {
+                shouldAlert = true;
+                alertReason = "NORMAL";
+              } else if (channelSettings?.notifyOn === "MENTIONS") {
+                // Handled above
+              } else {
+                // NONE - skip unless matched keywords or mentioned
+              }
+            }
+
+            // 5. Check DND (Do Not Disturb) suppression
+            if (shouldAlert && globalSettings?.dnd?.enabled) {
+              if (
+                isWithinDND(
+                  globalSettings.dnd.start,
+                  globalSettings.dnd.end,
+                  targetUser.profile?.timezone
+                )
+              ) {
+                shouldAlert = false; // Suppress alert but still send unread notification
+              }
+            }
+
+            // 6. Check Mute Override
+            if (
+              shouldAlert &&
+              channelSettings?.muteUntil &&
+              new Date(channelSettings.muteUntil) > new Date()
+            ) {
+              shouldAlert = false;
+            }
+
+            // 7. Check User Global Mute (if messages: false)
+            if (shouldAlert && globalSettings?.messages === false) {
+              shouldAlert = false;
+            }
+
+            // 8. Check Desktop Notification setting
+            if (shouldAlert && globalSettings?.desktop === false) {
+              shouldAlert = false;
+            }
+
+            // Send notification to user specifically
+            io.to(`user:${targetUser._id}`).emit("new-message-notification", {
+              channelId,
+              message: messageData,
+              shouldAlert,
+              alertReason,
+              sound: shouldAlert
+                ? channelSettings?.sound ||
+                  globalSettings?.soundName ||
+                  "default"
+                : null,
+            });
+          }
         } catch (error) {
           console.error("Send message error:", error);
           socket.emit("error", { message: "Failed to send message" });
@@ -434,6 +560,53 @@ function clearTyping(channelId: string, odiv: string): void {
   if (channelTyping?.has(odiv)) {
     clearTimeout(channelTyping.get(odiv)!);
     channelTyping.delete(odiv);
+  }
+}
+
+/**
+ * Helper to check if current time is within DND range
+ * @param start "HH:mm"
+ * @param end "HH:mm"
+ * @param timezone User's timezone
+ */
+function isWithinDND(
+  start: string,
+  end: string,
+  timezone: string = "UTC"
+): boolean {
+  if (!start || !end) return false;
+
+  try {
+    const now = new Date();
+    const formatter = new Intl.DateTimeFormat("en-US", {
+      hour: "2-digit",
+      minute: "2-digit",
+      hour12: false,
+      timeZone: timezone,
+    });
+
+    const parts = formatter.formatToParts(now);
+    const h = Number(parts.find((p) => p.type === "hour")?.value);
+    const m = Number(parts.find((p) => p.type === "minute")?.value);
+
+    const currentMinutes = h * 60 + m;
+
+    const [startH, startM] = start.split(":").map(Number);
+    const [endH, endM] = end.split(":").map(Number);
+
+    const startMinutes = startH * 60 + startM;
+    const endMinutes = endH * 60 + endM;
+
+    if (startMinutes < endMinutes) {
+      return currentMinutes >= startMinutes && currentMinutes <= endMinutes;
+    } else {
+      // Overlap midnight (e.g., 22:00 to 08:00)
+      return currentMinutes >= startMinutes || currentMinutes <= endMinutes;
+    }
+  } catch (error) {
+    console.error("DND check error:", error);
+    // Fallback to UTC/System if timezone is invalid
+    return false;
   }
 }
 

@@ -50,6 +50,7 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { usersApi, settingsApi, authApi, uploadsApi } from '@/lib/api';
 import { UserSettings } from '@/types';
+import { StatusPicker } from '@/components';
 
 type SettingsSection =
     | 'u-profile' | 'u-preferences' | 'u-security' | 'u-notifications' | 'u-privacy'
@@ -347,6 +348,156 @@ export function Settings() {
                                 </div>
                             </CardContent>
                         </Card>
+
+                        {/* Custom Status Section */}
+                        <Card className="glass-card">
+                            <CardHeader>
+                                <CardTitle>Custom Status</CardTitle>
+                                <CardDescription>Let your team know what you're up to or when you'll be back.</CardDescription>
+                            </CardHeader>
+                            <CardContent>
+                                <div className="flex items-center justify-between p-4 rounded-lg border bg-muted/30">
+                                    <div className="flex items-center gap-3">
+                                        {user?.customStatus?.text ? (
+                                            <>
+                                                <span className="text-2xl">{user.customStatus.emoji || '😊'}</span>
+                                                <div>
+                                                    <p className="font-medium">{user.customStatus.text}</p>
+                                                    {user.customStatus.expiresAt && (
+                                                        <p className="text-xs text-muted-foreground">
+                                                            Clears {new Date(user.customStatus.expiresAt).toLocaleString()}
+                                                        </p>
+                                                    )}
+                                                </div>
+                                            </>
+                                        ) : (
+                                            <p className="text-muted-foreground">No status set</p>
+                                        )}
+                                    </div>
+                                    <StatusPicker
+                                        currentStatus={user?.customStatus}
+                                        trigger={
+                                            <Button variant="outline" size="sm">
+                                                {user?.customStatus?.text ? 'Edit status' : 'Set status'}
+                                            </Button>
+                                        }
+                                    />
+                                </div>
+                            </CardContent>
+                        </Card>
+
+                        {/* Rich Profile Section */}
+                        <Card className="glass-card">
+                            <CardHeader>
+                                <CardTitle>Professional Details</CardTitle>
+                                <CardDescription>Add more information about your role in the organization.</CardDescription>
+                            </CardHeader>
+                            <CardContent className="space-y-4">
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                    <div className="grid gap-2">
+                                        <Label>Job Title</Label>
+                                        <Input
+                                            placeholder="e.g. Senior Software Engineer"
+                                            defaultValue={user?.profile?.title}
+                                            onBlur={async (e) => {
+                                                if (e.target.value !== user?.profile?.title) {
+                                                    try {
+                                                        await usersApi.updateProfile({ title: e.target.value });
+                                                        await fetchUser();
+                                                        toast.success('Title updated');
+                                                    } catch {
+                                                        toast.error('Failed to update title');
+                                                    }
+                                                }
+                                            }}
+                                        />
+                                    </div>
+                                    <div className="grid gap-2">
+                                        <Label>Department</Label>
+                                        <Input
+                                            placeholder="e.g. Engineering"
+                                            defaultValue={user?.profile?.department}
+                                            onBlur={async (e) => {
+                                                if (e.target.value !== user?.profile?.department) {
+                                                    try {
+                                                        await usersApi.updateProfile({ department: e.target.value });
+                                                        await fetchUser();
+                                                        toast.success('Department updated');
+                                                    } catch {
+                                                        toast.error('Failed to update department');
+                                                    }
+                                                }
+                                            }}
+                                        />
+                                    </div>
+                                </div>
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                    <div className="grid gap-2">
+                                        <Label>Phone Number</Label>
+                                        <Input
+                                            placeholder="+1 (555) 123-4567"
+                                            defaultValue={user?.profile?.phone}
+                                            onBlur={async (e) => {
+                                                if (e.target.value !== user?.profile?.phone) {
+                                                    try {
+                                                        await usersApi.updateProfile({ phone: e.target.value });
+                                                        await fetchUser();
+                                                        toast.success('Phone updated');
+                                                    } catch {
+                                                        toast.error('Failed to update phone');
+                                                    }
+                                                }
+                                            }}
+                                        />
+                                    </div>
+                                    <div className="grid gap-2">
+                                        <Label>Timezone</Label>
+                                        <select
+                                            className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                                            defaultValue={user?.profile?.timezone || 'UTC'}
+                                            onChange={async (e) => {
+                                                try {
+                                                    await usersApi.updateProfile({ timezone: e.target.value });
+                                                    await fetchUser();
+                                                    toast.success('Timezone updated');
+                                                } catch {
+                                                    toast.error('Failed to update timezone');
+                                                }
+                                            }}
+                                        >
+                                            <option value="UTC">UTC (GMT +0:00)</option>
+                                            <option value="Asia/Kolkata">Asia/Kolkata (GMT +5:30)</option>
+                                            <option value="America/New_York">America/New_York (GMT -5:00)</option>
+                                            <option value="America/Los_Angeles">America/Los_Angeles (GMT -8:00)</option>
+                                            <option value="Europe/London">Europe/London (GMT +0:00)</option>
+                                            <option value="Europe/Paris">Europe/Paris (GMT +1:00)</option>
+                                            <option value="Asia/Tokyo">Asia/Tokyo (GMT +9:00)</option>
+                                        </select>
+                                    </div>
+                                </div>
+                                <div className="grid gap-2">
+                                    <Label>Bio</Label>
+                                    <textarea
+                                        className="flex min-h-[100px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring resize-none"
+                                        placeholder="Tell your team a bit about yourself..."
+                                        maxLength={500}
+                                        defaultValue={user?.profile?.bio}
+                                        onBlur={async (e) => {
+                                            if (e.target.value !== user?.profile?.bio) {
+                                                try {
+                                                    await usersApi.updateProfile({ bio: e.target.value });
+                                                    await fetchUser();
+                                                    toast.success('Bio updated');
+                                                } catch {
+                                                    toast.error('Failed to update bio');
+                                                }
+                                            }
+                                        }}
+                                    />
+                                    <p className="text-xs text-muted-foreground text-right">Max 500 characters</p>
+                                </div>
+                            </CardContent>
+                        </Card>
                     </div>
                 );
 
@@ -517,8 +668,8 @@ export function Settings() {
 
                         <Card className="glass-card">
                             <CardHeader>
-                                <CardTitle>Desktop & Mobile</CardTitle>
-                                <CardDescription>Configure your push notification preferences.</CardDescription>
+                                <CardTitle>Notification Triggers</CardTitle>
+                                <CardDescription>Configure which events trigger a notification.</CardDescription>
                             </CardHeader>
                             <CardContent className="space-y-6">
                                 {[
@@ -527,7 +678,7 @@ export function Settings() {
                                     { id: 'email', label: 'Email Digest', desc: 'Receive a daily summary of missed activity.' },
                                 ].map((n) => {
                                     const key = n.id as keyof UserSettings['notifications'];
-                                    const isEnabled = user?.settings?.notifications?.[key] ?? true;
+                                    const isEnabled = (user?.settings?.notifications?.[key] as boolean) ?? true;
                                     return (
                                         <div key={n.id} className="flex items-center justify-between">
                                             <div className="space-y-0.5">
@@ -552,6 +703,215 @@ export function Settings() {
                                         </div>
                                     );
                                 })}
+                            </CardContent>
+                        </Card>
+
+                        <Card className="glass-card">
+                            <CardHeader>
+                                <CardTitle>Methods & Sound</CardTitle>
+                                <CardDescription>Configure how you receive notifications.</CardDescription>
+                            </CardHeader>
+                            <CardContent className="space-y-6">
+                                {[
+                                    { id: 'desktop', label: 'Desktop Notifications', desc: 'Show toast notifications on your computer.' },
+                                    { id: 'mobile', label: 'Mobile Push', desc: 'Send push notifications to your mobile device.' },
+                                    { id: 'sound', label: 'Notification Sound', desc: 'Play a sound when a notification arrives.' },
+                                ].map((n) => {
+                                    const key = n.id as keyof UserSettings['notifications'];
+                                    const isEnabled = (user?.settings?.notifications?.[key] as boolean) ?? true;
+                                    return (
+                                        <div key={n.id} className="flex items-center justify-between">
+                                            <div className="space-y-0.5">
+                                                <Label className="text-base">{n.label}</Label>
+                                                <p className="text-sm text-muted-foreground">{n.desc}</p>
+                                            </div>
+                                            <button
+                                                onClick={async () => {
+                                                    await settingsApi.updateUser({ settings: { notifications: { [key]: !isEnabled } } });
+                                                    await fetchUser();
+                                                }}
+                                                className={cn(
+                                                    "h-6 w-11 rounded-full relative transition-colors duration-200 focus:outline-none",
+                                                    isEnabled ? "bg-primary" : "bg-muted"
+                                                )}
+                                            >
+                                                <div className={cn(
+                                                    "absolute top-1 h-4 w-4 rounded-full bg-white transition-all duration-200 shadow-sm",
+                                                    isEnabled ? "right-1" : "left-1"
+                                                )} />
+                                            </button>
+                                        </div>
+                                    );
+                                })}
+
+                                {user?.settings?.notifications?.sound && (
+                                    <div className="pt-4 border-t">
+                                        <Label className="text-sm font-medium mb-3 block">Sound Effect</Label>
+                                        <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+                                            {['default', 'chime', 'bell', 'glass', 'ping'].map((s) => (
+                                                <Button
+                                                    key={s}
+                                                    variant={user?.settings?.notifications?.soundName === s ? 'default' : 'outline'}
+                                                    size="sm"
+                                                    className="capitalize"
+                                                    onClick={async () => {
+                                                        await settingsApi.updateUser({ settings: { notifications: { soundName: s } } });
+                                                        await fetchUser();
+                                                    }}
+                                                >
+                                                    {s}
+                                                </Button>
+                                            ))}
+                                        </div>
+                                    </div>
+                                )}
+                            </CardContent>
+                        </Card>
+
+                        <Card className="glass-card">
+                            <CardHeader>
+                                <CardTitle>Do Not Disturb</CardTitle>
+                                <CardDescription>Automatically mute notifications during specific hours.</CardDescription>
+                            </CardHeader>
+                            <CardContent className="space-y-6">
+                                <div className="flex items-center justify-between">
+                                    <div className="space-y-0.5">
+                                        <Label className="text-base">DND Schedule</Label>
+                                        <p className="text-sm text-muted-foreground">Automatically enable DND during these hours.</p>
+                                    </div>
+                                    <button
+                                        onClick={async () => {
+                                            const enabled = !user?.settings?.notifications?.dnd?.enabled;
+                                            await settingsApi.updateUser({
+                                                settings: {
+                                                    notifications: {
+                                                        dnd: {
+                                                            enabled,
+                                                            start: user?.settings?.notifications?.dnd?.start || "22:00",
+                                                            end: user?.settings?.notifications?.dnd?.end || "08:00"
+                                                        }
+                                                    }
+                                                }
+                                            });
+                                            await fetchUser();
+                                        }}
+                                        className={cn(
+                                            "h-6 w-11 rounded-full relative transition-colors duration-200 focus:outline-none",
+                                            user?.settings?.notifications?.dnd?.enabled ? "bg-primary" : "bg-muted"
+                                        )}
+                                    >
+                                        <div className={cn(
+                                            "absolute top-1 h-4 w-4 rounded-full bg-white transition-all duration-200 shadow-sm",
+                                            user?.settings?.notifications?.dnd?.enabled ? "right-1" : "left-1"
+                                        )} />
+                                    </button>
+                                </div>
+
+                                {user?.settings?.notifications?.dnd?.enabled && (
+                                    <div className="grid grid-cols-2 gap-4 animate-in fade-in slide-in-from-top-2">
+                                        <div className="space-y-2">
+                                            <Label>Start Time</Label>
+                                            <Input
+                                                type="time"
+                                                value={user?.settings?.notifications?.dnd?.start || "22:00"}
+                                                onChange={async (e) => {
+                                                    await settingsApi.updateUser({
+                                                        settings: {
+                                                            notifications: {
+                                                                dnd: {
+                                                                    enabled: true,
+                                                                    start: e.target.value,
+                                                                    end: user?.settings?.notifications?.dnd?.end || "08:00"
+                                                                }
+                                                            }
+                                                        }
+                                                    });
+                                                    await fetchUser();
+                                                }}
+                                            />
+                                        </div>
+                                        <div className="space-y-2">
+                                            <Label>End Time</Label>
+                                            <Input
+                                                type="time"
+                                                value={user?.settings?.notifications?.dnd?.end || "08:00"}
+                                                onChange={async (e) => {
+                                                    await settingsApi.updateUser({
+                                                        settings: {
+                                                            notifications: {
+                                                                dnd: {
+                                                                    enabled: true,
+                                                                    start: user?.settings?.notifications?.dnd?.start || "22:00",
+                                                                    end: e.target.value
+                                                                }
+                                                            }
+                                                        }
+                                                    });
+                                                    await fetchUser();
+                                                }}
+                                            />
+                                        </div>
+                                    </div>
+                                )}
+                            </CardContent>
+                        </Card>
+
+                        <Card className="glass-card">
+                            <CardHeader>
+                                <CardTitle>Keyword Alerts</CardTitle>
+                                <CardDescription>Get notified whenever someone uses these specific words.</CardDescription>
+                            </CardHeader>
+                            <CardContent className="space-y-4">
+                                <div className="flex gap-2">
+                                    <Input
+                                        id="new-keyword"
+                                        placeholder="Add a keyword (e.g. urgent, feedback)"
+                                        onKeyDown={async (e) => {
+                                            if (e.key === 'Enter') {
+                                                const val = (e.target as HTMLInputElement).value.trim();
+                                                if (val) {
+                                                    const keywords = [...(user?.settings?.notifications?.keywords || []), val];
+                                                    await settingsApi.updateUser({ settings: { notifications: { keywords } } });
+                                                    (e.target as HTMLInputElement).value = '';
+                                                    await fetchUser();
+                                                    toast.success('Keyword added');
+                                                }
+                                            }
+                                        }}
+                                    />
+                                    <Button variant="secondary" onClick={async () => {
+                                        const input = document.getElementById('new-keyword') as HTMLInputElement;
+                                        const val = input.value.trim();
+                                        if (val) {
+                                            const keywords = [...(user?.settings?.notifications?.keywords || []), val];
+                                            await settingsApi.updateUser({ settings: { notifications: { keywords } } });
+                                            input.value = '';
+                                            await fetchUser();
+                                            toast.success('Keyword added');
+                                        }
+                                    }}>Add</Button>
+                                </div>
+
+                                <div className="flex flex-wrap gap-2">
+                                    {user?.settings?.notifications?.keywords?.map((k: string, i: number) => (
+                                        <div key={i} className="flex items-center gap-1 bg-primary/10 text-primary px-3 py-1 rounded-full text-sm">
+                                            {k}
+                                            <button
+                                                onClick={async () => {
+                                                    const keywords = user?.settings?.notifications?.keywords?.filter((_: string, idx: number) => idx !== i);
+                                                    await settingsApi.updateUser({ settings: { notifications: { keywords } } });
+                                                    await fetchUser();
+                                                }}
+                                                className="hover:text-primary/70"
+                                            >
+                                                <Check className="h-3 w-3 rotate-45" />
+                                            </button>
+                                        </div>
+                                    ))}
+                                    {(!user?.settings?.notifications?.keywords || user.settings.notifications.keywords.length === 0) && (
+                                        <p className="text-sm text-muted-foreground italic">No keywords added yet.</p>
+                                    )}
+                                </div>
                             </CardContent>
                         </Card>
                     </div>

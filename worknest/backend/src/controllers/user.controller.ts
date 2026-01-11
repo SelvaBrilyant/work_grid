@@ -1,6 +1,7 @@
 import { Response } from "express";
 import { AuthenticatedRequest } from "../types/index.js";
 import { User } from "../models/index.js";
+import { io } from "../server.js";
 import {
   BadRequestError,
   UnauthorizedError,
@@ -229,6 +230,86 @@ class UserController {
     if (!lastSeenAt) return false;
     const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000);
     return new Date(lastSeenAt) > fiveMinutesAgo;
+  }
+
+  /**
+   * Update custom status
+   * @route PUT /api/users/status
+   */
+  async updateStatus(req: AuthenticatedRequest, res: Response): Promise<void> {
+    if (!req.user) {
+      throw new UnauthorizedError("Authentication required.");
+    }
+
+    const { text, emoji, expiresAt, clearStatus } = req.body;
+
+    const user = await User.findById(req.user.userId);
+    if (!user) {
+      throw new NotFoundError("User not found.");
+    }
+
+    if (clearStatus) {
+      user.customStatus = { text: "", emoji: undefined, expiresAt: undefined };
+    } else {
+      user.customStatus = {
+        text: text || "",
+        emoji: emoji || undefined,
+        expiresAt: expiresAt ? new Date(expiresAt) : undefined,
+      };
+    }
+
+    await user.save();
+
+    // Broadcast status change to organization
+    io.to(`org:${user.organizationId}`).emit("user-status-changed", {
+      userId: user._id,
+      customStatus: user.customStatus,
+    });
+
+    res.json({
+      success: true,
+      data: {
+        customStatus: user.customStatus,
+      },
+      message: "Status updated successfully.",
+    });
+  }
+
+  /**
+   * Update user profile
+   * @route PUT /api/users/profile
+   */
+  async updateProfile(req: AuthenticatedRequest, res: Response): Promise<void> {
+    if (!req.user) {
+      throw new UnauthorizedError("Authentication required.");
+    }
+
+    const { title, department, phone, timezone, bio } = req.body;
+
+    const user = await User.findById(req.user.userId);
+    if (!user) {
+      throw new NotFoundError("User not found.");
+    }
+
+    if (!user.profile) {
+      user.profile = {};
+    }
+
+    if (title !== undefined) user.profile.title = title;
+    if (department !== undefined) user.profile.department = department;
+    if (phone !== undefined) user.profile.phone = phone;
+    if (timezone !== undefined) user.profile.timezone = timezone;
+    if (bio !== undefined) user.profile.bio = bio;
+
+    await user.save();
+
+    res.json({
+      success: true,
+      data: {
+        profile: user.profile,
+      },
+      message: "Profile updated successfully.",
+    });
   }
 }
 

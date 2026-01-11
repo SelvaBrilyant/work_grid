@@ -82,6 +82,13 @@ export interface MessagePayload {
     userId: string;
     readAt: string;
   }[];
+  attachments?: {
+    url: string;
+    name: string;
+    type: string;
+    size: number;
+    public_id?: string;
+  }[];
   createdAt: string;
   replyTo?: {
     id: string;

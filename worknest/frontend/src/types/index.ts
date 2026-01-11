@@ -13,6 +13,16 @@ export interface UserSettings {
     messages: boolean;
     mentions: boolean;
     email: boolean;
+    desktop: boolean;
+    mobile: boolean;
+    sound: boolean;
+    soundName: string;
+    dnd: {
+      enabled: boolean;
+      start: string;
+      end: string;
+    };
+    keywords: string[];
   };
   privacy: {
     showOnlineStatus: boolean;
@@ -29,6 +39,18 @@ export interface User {
   status: UserStatus;
   avatar?: string;
   statusMessage?: string;
+  customStatus?: {
+    text: string;
+    emoji?: string;
+    expiresAt?: string;
+  };
+  profile?: {
+    title?: string;
+    department?: string;
+    phone?: string;
+    timezone?: string;
+    bio?: string;
+  };
   settings?: UserSettings;
   lastSeenAt?: string;
   createdAt?: string;

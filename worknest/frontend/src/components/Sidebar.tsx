@@ -36,6 +36,7 @@ import {
     DialogTrigger,
 } from '@/components/ui/dialog';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
+import { StatusPicker } from '@/components/StatusPicker';
 
 export function Sidebar() {
     const navigate = useNavigate();
@@ -44,7 +45,9 @@ export function Sidebar() {
     const [isCreateChannelOpen, setIsCreateChannelOpen] = useState(false);
     const [isDirectMessageOpen, setIsDirectMessageOpen] = useState(false);
     const [newChannelName, setNewChannelName] = useState('');
+    const [newChannelDescription, setNewChannelDescription] = useState('');
     const [newChannelType, setNewChannelType] = useState<'PUBLIC' | 'PRIVATE'>('PUBLIC');
+    const [selectedMembers, setSelectedMembers] = useState<string[]>([]);
     const [searchQuery, setSearchQuery] = useState('');
     const [isInviteOpen, setIsInviteOpen] = useState(false);
     const [inviteEmail, setInviteEmail] = useState('');
@@ -60,13 +63,22 @@ export function Sidebar() {
         try {
             await createChannel({
                 name: newChannelName.trim(),
+                description: newChannelDescription.trim(),
                 type: newChannelType,
+                members: selectedMembers,
             });
             setNewChannelName('');
+            setNewChannelDescription('');
+            setSelectedMembers([]);
             setIsCreateChannelOpen(false);
         } catch (error) {
             console.error('Failed to create channel:', error);
         }
+    };
+
+    const handleOpenCreateChannel = async () => {
+        setIsCreateChannelOpen(true);
+        await fetchUsers();
     };
 
     const handleOpenDMDialog = async () => {
@@ -195,65 +207,132 @@ export function Sidebar() {
                         <span className="text-xs font-semibold uppercase tracking-wider opacity-60">
                             Channels
                         </span>
-                        {user?.role === 'ADMIN' && (
-                            <Dialog open={isCreateChannelOpen} onOpenChange={setIsCreateChannelOpen}>
-                                <DialogTrigger asChild>
-                                    <Tooltip>
-                                        <TooltipTrigger asChild>
-                                            <Button variant="ghost" size="icon" className="h-5 w-5">
-                                                <Plus className="h-3.5 w-3.5" />
-                                            </Button>
-                                        </TooltipTrigger>
-                                        <TooltipContent>Create Channel</TooltipContent>
-                                    </Tooltip>
-                                </DialogTrigger>
-                                <DialogContent>
-                                    <DialogHeader>
-                                        <DialogTitle>Create Channel</DialogTitle>
-                                        <DialogDescription>
-                                            Create a new channel for your team to collaborate.
-                                        </DialogDescription>
-                                    </DialogHeader>
-                                    <div className="space-y-4 py-4">
-                                        <div className="space-y-2">
-                                            <label className="text-sm font-medium">Channel Name</label>
+                        <Dialog open={isCreateChannelOpen} onOpenChange={setIsCreateChannelOpen}>
+                            <DialogTrigger asChild>
+                                <Tooltip>
+                                    <TooltipTrigger asChild>
+                                        <Button
+                                            variant="ghost"
+                                            size="icon"
+                                            className="h-5 w-5"
+                                            onClick={handleOpenCreateChannel}
+                                        >
+                                            <Plus className="h-3.5 w-3.5" />
+                                        </Button>
+                                    </TooltipTrigger>
+                                    <TooltipContent>Create Channel</TooltipContent>
+                                </Tooltip>
+                            </DialogTrigger>
+                            <DialogContent className="sm:max-w-[500px]">
+                                <DialogHeader>
+                                    <DialogTitle>Create Channel</DialogTitle>
+                                    <DialogDescription>
+                                        Channels are where your team communicates. They're best when organized around a topic — #marketing, for example.
+                                    </DialogDescription>
+                                </DialogHeader>
+                                <div className="space-y-4 py-4">
+                                    <div className="space-y-2">
+                                        <label className="text-sm font-medium">Name</label>
+                                        <div className="relative">
+                                            <Hash className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                                             <Input
-                                                placeholder="e.g., engineering"
+                                                placeholder="e.g. plan-budget"
+                                                className="pl-9"
                                                 value={newChannelName}
                                                 onChange={(e) => setNewChannelName(e.target.value)}
                                             />
                                         </div>
-                                        <div className="space-y-2">
-                                            <label className="text-sm font-medium">Type</label>
-                                            <div className="flex gap-2">
-                                                <Button
-                                                    variant={newChannelType === 'PUBLIC' ? 'default' : 'outline'}
-                                                    size="sm"
-                                                    onClick={() => setNewChannelType('PUBLIC')}
-                                                >
-                                                    <Hash className="mr-1 h-4 w-4" />
-                                                    Public
-                                                </Button>
-                                                <Button
-                                                    variant={newChannelType === 'PRIVATE' ? 'default' : 'outline'}
-                                                    size="sm"
+                                    </div>
+                                    <div className="space-y-2">
+                                        <label className="text-sm font-medium">Description <span className="text-muted-foreground font-normal">(optional)</span></label>
+                                        <Input
+                                            placeholder="What's this channel about?"
+                                            value={newChannelDescription}
+                                            onChange={(e) => setNewChannelDescription(e.target.value)}
+                                        />
+                                    </div>
+                                    <div className="space-y-3">
+                                        <label className="text-sm font-medium">Visibility</label>
+                                        <div className={cn("grid gap-4", user?.role === 'ADMIN' ? "grid-cols-2" : "grid-cols-1")}>
+                                            <button
+                                                onClick={() => setNewChannelType('PUBLIC')}
+                                                className={cn(
+                                                    "flex flex-col items-start p-3 rounded-lg border-2 text-left transition-all",
+                                                    newChannelType === 'PUBLIC'
+                                                        ? "border-primary bg-primary/5"
+                                                        : "border-transparent bg-muted/50 hover:bg-muted"
+                                                )}
+                                            >
+                                                <span className="font-semibold text-sm flex items-center gap-2">
+                                                    <Hash className="h-4 w-4" /> Public
+                                                </span>
+                                                <span className="text-xs text-muted-foreground mt-1">Anyone in your workspace can join</span>
+                                            </button>
+
+                                            {user?.role === 'ADMIN' && (
+                                                <button
                                                     onClick={() => setNewChannelType('PRIVATE')}
+                                                    className={cn(
+                                                        "flex flex-col items-start p-3 rounded-lg border-2 text-left transition-all",
+                                                        newChannelType === 'PRIVATE'
+                                                            ? "border-primary bg-primary/5"
+                                                            : "border-transparent bg-muted/50 hover:bg-muted"
+                                                    )}
                                                 >
-                                                    <Lock className="mr-1 h-4 w-4" />
-                                                    Private
-                                                </Button>
-                                            </div>
+                                                    <span className="font-semibold text-sm flex items-center gap-2">
+                                                        <Lock className="h-4 w-4" /> Private
+                                                    </span>
+                                                    <span className="text-xs text-muted-foreground mt-1">Only invited people can see and join</span>
+                                                </button>
+                                            )}
                                         </div>
                                     </div>
-                                    <DialogFooter>
-                                        <Button variant="outline" onClick={() => setIsCreateChannelOpen(false)}>
-                                            Cancel
-                                        </Button>
-                                        <Button onClick={handleCreateChannel}>Create Channel</Button>
-                                    </DialogFooter>
-                                </DialogContent>
-                            </Dialog>
-                        )}
+
+                                    <div className="space-y-2">
+                                        <label className="text-sm font-medium">Add members <span className="text-muted-foreground font-normal">(optional)</span></label>
+                                        <ScrollArea className="h-[120px] rounded-md border p-2">
+                                            <div className="space-y-1">
+                                                {users.filter(u => u.id !== user?.id).map((u) => (
+                                                    <div
+                                                        key={u.id}
+                                                        className="flex items-center space-x-2 p-1 hover:bg-muted rounded-md cursor-pointer"
+                                                        onClick={() => {
+                                                            if (selectedMembers.includes(u.id)) {
+                                                                setSelectedMembers(selectedMembers.filter(id => id !== u.id));
+                                                            } else {
+                                                                setSelectedMembers([...selectedMembers, u.id]);
+                                                            }
+                                                        }}
+                                                    >
+                                                        <input
+                                                            type="checkbox"
+                                                            checked={selectedMembers.includes(u.id)}
+                                                            readOnly
+                                                            className="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary"
+                                                        />
+                                                        <Avatar className="h-6 w-6">
+                                                            <AvatarImage src={u.avatar} />
+                                                            <AvatarFallback className="text-[10px]">
+                                                                {getInitials(u.name)}
+                                                            </AvatarFallback>
+                                                        </Avatar>
+                                                        <span className="text-sm truncate">{u.name}</span>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        </ScrollArea>
+                                    </div>
+                                </div>
+                                <DialogFooter>
+                                    <Button variant="outline" onClick={() => setIsCreateChannelOpen(false)}>
+                                        Cancel
+                                    </Button>
+                                    <Button onClick={handleCreateChannel} disabled={!newChannelName.trim()}>
+                                        Create Channel
+                                    </Button>
+                                </DialogFooter>
+                            </DialogContent>
+                        </Dialog>
                     </div>
                     <div className="space-y-0.5">
                         {publicChannels.map((channel) => (
@@ -468,15 +547,32 @@ export function Sidebar() {
                     </div>
                     <div className="flex-1 min-w-0">
                         <p className="text-sm font-medium truncate">{user?.name}</p>
-                        <p className="text-xs text-sidebar-foreground/60">
-                            {user?.role === 'ADMIN' ? (
-                                <span className="flex items-center gap-1">
-                                    <Users className="h-3 w-3" /> Admin
-                                </span>
-                            ) : (
-                                'Online'
-                            )}
-                        </p>
+                        {user?.customStatus?.text ? (
+                            <StatusPicker
+                                currentStatus={user.customStatus}
+                                trigger={
+                                    <button className="text-xs text-sidebar-foreground/60 truncate flex items-center gap-1 hover:text-sidebar-foreground transition-colors max-w-full">
+                                        <span>{user.customStatus.emoji || '😊'}</span>
+                                        <span className="truncate">{user.customStatus.text}</span>
+                                    </button>
+                                }
+                            />
+                        ) : (
+                            <StatusPicker
+                                currentStatus={user?.customStatus}
+                                trigger={
+                                    <button className="text-xs text-sidebar-foreground/60 hover:text-sidebar-foreground transition-colors flex items-center gap-1">
+                                        {user?.role === 'ADMIN' ? (
+                                            <>
+                                                <Users className="h-3 w-3" /> Admin
+                                            </>
+                                        ) : (
+                                            'Set status'
+                                        )}
+                                    </button>
+                                }
+                            />
+                        )}
                     </div>
                 </div>
             </div>

@@ -119,9 +119,9 @@ class ChannelController {
 
     const { name, description, type = "PUBLIC", members = [] } = req.body;
 
-    // Validate admin for non-DM channels
-    if (type !== "DM" && req.user.role !== "ADMIN") {
-      throw new ForbiddenError("Only admins can create channels.");
+    // Restrict private channel creation to admins
+    if (type === "PRIVATE" && req.user.role !== "ADMIN") {
+      throw new ForbiddenError("Only admins can create private channels.");
     }
 
     if (!name && type !== "DM") {
@@ -158,7 +158,7 @@ class ChannelController {
       role: "ADMIN",
     });
 
-    // Add other members
+    // Add selected members
     if (members.length > 0) {
       for (const memberId of members) {
         if (memberId !== req.user.userId) {
@@ -172,32 +172,52 @@ class ChannelController {
       }
     }
 
-    // For public channels, add all org users
-    if (type === "PUBLIC") {
-      const orgUsers = await User.find({
-        organizationId: req.user.organizationId,
-        status: "ACTIVE",
-        _id: { $ne: req.user.userId },
-      });
-
-      for (const user of orgUsers) {
-        await ChannelMember.create({
-          organizationId: req.user.organizationId,
-          channelId: channel._id,
-          userId: user._id,
-          role: "MEMBER",
-        });
-      }
-    }
-
     // Create system message
-    await Message.create({
+    const systemMessage = await Message.create({
       organizationId: req.user.organizationId,
       channelId: channel._id,
       senderId: req.user.userId,
       content: `Channel "${channel.name}" was created`,
       contentType: "SYSTEM",
     });
+
+    // Get user name for socket notification
+    const creator = await User.findById(req.user.userId).select("name");
+
+    // Prepare channel data for notification
+    const channelData = {
+      id: channel._id,
+      name: channel.name,
+      description: channel.description,
+      type: channel.type,
+      memberCount: await ChannelMember.countDocuments({
+        channelId: channel._id,
+      }),
+      unreadCount: 0,
+      lastMessage: {
+        content: `Channel "${channel.name}" was created`,
+        senderName: creator?.name || "System",
+        createdAt: systemMessage.createdAt,
+      },
+      role: "MEMBER",
+      joinedAt: new Date(),
+    };
+
+    // Notify members
+    if (type === "PUBLIC") {
+      io.to(`org:${req.user.organizationId}`).emit(
+        "channel-added",
+        channelData
+      );
+    } else {
+      // Notify explicitly added members
+      for (const memberId of [req.user.userId, ...members]) {
+        io.to(`user:${memberId}`).emit("channel-added", {
+          ...channelData,
+          role: memberId === req.user.userId ? "ADMIN" : "MEMBER",
+        });
+      }
+    }
 
     res.status(201).json({
       success: true,
@@ -435,11 +455,20 @@ class ChannelController {
     if (!channel) {
       throw new NotFoundError("Channel not found.");
     }
+    // Get all member IDs to notify them
+    const memberIds = (await ChannelMember.find({ channelId: id })).map((m) =>
+      m.userId.toString()
+    );
 
     // Delete all related data
     await ChannelMember.deleteMany({ channelId: id });
     await Message.deleteMany({ channelId: id });
     await Channel.deleteOne({ _id: id });
+
+    // Notify members
+    for (const memberId of memberIds) {
+      io.to(`user:${memberId}`).emit("channel-deleted", { id });
+    }
 
     res.json({
       success: true,
@@ -508,6 +537,163 @@ class ChannelController {
           status: targetUser.status,
         },
       },
+    });
+  }
+
+  /**
+   * Get all files/attachments in a channel
+   * @route GET /api/channels/:id/files
+   */
+  async getFiles(req: AuthenticatedRequest, res: Response): Promise<void> {
+    if (!req.user) {
+      throw new UnauthorizedError("Authentication required.");
+    }
+
+    const { id } = req.params;
+    const { type } = req.query; // Optional filter: 'image', 'video', 'document', 'audio'
+
+    // Check if user is a member of the channel
+    const membership = await ChannelMember.findOne({
+      channelId: id,
+      userId: req.user.userId,
+    });
+
+    if (!membership) {
+      throw new ForbiddenError("You are not a member of this channel.");
+    }
+
+    // Build query for messages with attachments
+    const query: Record<string, unknown> = {
+      channelId: id,
+      isDeleted: false,
+      "attachments.0": { $exists: true }, // Has at least one attachment
+    };
+
+    // Fetch messages with attachments
+    const messages = await Message.find(query)
+      .select("attachments senderId createdAt")
+      .populate("senderId", "name avatar")
+      .sort({ createdAt: -1 })
+      .limit(200);
+
+    // Flatten and format attachments
+    const allFiles: {
+      url: string;
+      name: string;
+      type: string;
+      size: number;
+      uploadedBy: { id: string; name: string; avatar?: string };
+      uploadedAt: Date;
+      messageId: string;
+    }[] = [];
+
+    for (const msg of messages) {
+      if (msg.attachments) {
+        for (const attachment of msg.attachments) {
+          // Apply type filter if specified
+          if (type) {
+            const fileType = attachment.type.split("/")[0];
+            if (
+              type === "document" &&
+              (fileType === "image" ||
+                fileType === "video" ||
+                fileType === "audio")
+            ) {
+              continue;
+            }
+            if (type !== "document" && fileType !== type) {
+              continue;
+            }
+          }
+
+          const sender = msg.senderId as unknown as {
+            _id: string;
+            name: string;
+            avatar?: string;
+          };
+          allFiles.push({
+            url: attachment.url,
+            name: attachment.name,
+            type: attachment.type,
+            size: attachment.size,
+            uploadedBy: {
+              id: sender._id.toString(),
+              name: sender.name,
+              avatar: sender.avatar,
+            },
+            uploadedAt: msg.createdAt,
+            messageId: msg._id.toString(),
+          });
+        }
+      }
+    }
+
+    // Group by type for summary
+    const summary = {
+      images: allFiles.filter((f) => f.type.startsWith("image/")).length,
+      videos: allFiles.filter((f) => f.type.startsWith("video/")).length,
+      audio: allFiles.filter((f) => f.type.startsWith("audio/")).length,
+      documents: allFiles.filter(
+        (f) =>
+          !f.type.startsWith("image/") &&
+          !f.type.startsWith("video/") &&
+          !f.type.startsWith("audio/")
+      ).length,
+    };
+
+    res.json({
+      success: true,
+      data: {
+        files: allFiles,
+        summary,
+        total: allFiles.length,
+      },
+    });
+  }
+
+  /**
+   * Update channel notification settings for the current user
+   * @route PUT /api/channels/:id/notifications
+   */
+  async updateNotificationSettings(
+    req: AuthenticatedRequest,
+    res: Response
+  ): Promise<void> {
+    if (!req.user) {
+      throw new UnauthorizedError("Authentication required.");
+    }
+
+    const { id } = req.params;
+    const { notifyOn, muteUntil, sound } = req.body;
+
+    const membership = await ChannelMember.findOne({
+      channelId: id,
+      userId: req.user.userId,
+    });
+
+    if (!membership) {
+      throw new NotFoundError("Channel membership not found.");
+    }
+
+    // Default notifications object if it doesn't exist
+    if (!membership.notifications) {
+      membership.notifications = {
+        notifyOn: "ALL",
+        sound: "default",
+      };
+    }
+
+    if (notifyOn) membership.notifications.notifyOn = notifyOn;
+    if (muteUntil !== undefined) membership.notifications.muteUntil = muteUntil;
+    if (sound) membership.notifications.sound = sound;
+
+    membership.markModified("notifications");
+    await membership.save();
+
+    res.json({
+      success: true,
+      data: membership.notifications,
+      message: "Channel notification settings updated.",
     });
   }
 }

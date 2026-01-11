@@ -3,3 +3,8 @@ export { ChatHeader } from "./ChatHeader";
 export { ChatWindow } from "./ChatWindow";
 export { MessageBubble } from "./MessageBubble";
 export { DetailsPanel } from "./DetailsPanel";
+export { StatusPicker } from "./StatusPicker";
+export { ThreadPanel } from "./ThreadPanel";
+export { GlobalSearchModal } from "./GlobalSearchModal";
+export { VoiceMessage } from "./VoiceMessage";
+export { KanbanBoard } from "./KanbanBoard";

@@ -12,6 +12,36 @@ const router = Router();
 router.get("/", asyncHandler(userController.getAll.bind(userController)));
 
 /**
+ * @route   PUT /api/users/status
+ * @desc    Update custom status
+ * @access  Private
+ */
+router.put(
+  "/status",
+  asyncHandler(userController.updateStatus.bind(userController))
+);
+
+/**
+ * @route   PUT /api/users/profile
+ * @desc    Update user profile
+ * @access  Private
+ */
+router.put(
+  "/profile",
+  asyncHandler(userController.updateProfile.bind(userController))
+);
+
+/**
+ * @route   DELETE /api/users/me
+ * @desc    Delete own account
+ * @access  Private
+ */
+router.delete(
+  "/me",
+  asyncHandler(userController.deleteMe.bind(userController))
+);
+
+/**
  * @route   GET /api/users/:id
  * @desc    Get user by ID
  * @access  Private
@@ -24,16 +54,6 @@ router.get("/:id", asyncHandler(userController.getById.bind(userController)));
  * @access  Private (self or admin)
  */
 router.put("/:id", asyncHandler(userController.update.bind(userController)));
-
-/**
- * @route   DELETE /api/users/me
- * @desc    Delete own account
- * @access  Private
- */
-router.delete(
-  "/me",
-  asyncHandler(userController.deleteMe.bind(userController))
-);
 
 /**
  * @route   DELETE /api/users/:id

@@ -7,6 +7,7 @@ import {
   PresencePayload,
   ReactionPayload,
 } from "@/lib/socket";
+import { toast } from "sonner";
 
 export interface Message {
   id: string;
@@ -31,12 +32,19 @@ export interface Message {
     name: string;
     type: string;
     size: number;
+    public_id?: string;
+    waveform?: number[];
+    duration?: number;
   }[];
   reactions?: Record<string, string[]>;
   readBy: {
     userId: string;
     readAt: string;
   }[];
+  // Thread-related fields
+  threadCount?: number;
+  parentMessageId?: string;
+  lastThreadReplyAt?: string;
   createdAt: string;
 }
 
@@ -66,6 +74,11 @@ export interface Channel {
     role: string;
     joinedAt: string;
   }[];
+  notifications?: {
+    notifyOn: "ALL" | "MENTIONS" | "NONE";
+    muteUntil: string | null;
+    sound: string;
+  };
 }
 
 export interface User {
@@ -78,6 +91,18 @@ export interface User {
   lastSeenAt?: string;
   isOnline?: boolean;
   _id?: string; // Add for backend compatibility
+  customStatus?: {
+    text: string;
+    emoji?: string;
+    expiresAt?: string;
+  };
+  profile?: {
+    title?: string;
+    department?: string;
+    phone?: string;
+    timezone?: string;
+    bio?: string;
+  };
 }
 
 interface ChatState {
@@ -106,6 +131,12 @@ interface ChatState {
     type: "CHANNEL" | "USER" | null;
     id: string | null;
   };
+  // Thread Panel
+  threadPanel: {
+    isOpen: boolean;
+    parentMessage: { id: string; content: string; sender: User } | null;
+  };
+  activeView: "messages" | "tasks";
 
   // Actions
   fetchChannels: () => Promise<void>;
@@ -152,6 +183,11 @@ interface ChatState {
   openDetails: (type: "CHANNEL" | "USER", id: string) => void;
   closeDetails: () => void;
   markAsRead: (channelId: string) => Promise<void>;
+  // Thread actions
+  openThread: (message: { id: string; content: string; sender: User }) => void;
+  closeThread: () => void;
+  updateMessageThreadCount: (messageId: string, threadCount: number) => void;
+  setActiveView: (view: "messages" | "tasks") => void;
 
   // Socket event handlers
   initSocketEvents: () => void;
@@ -211,6 +247,11 @@ export const useChatStore = create<ChatState>((set, get) => {
       type: null,
       id: null,
     },
+    threadPanel: {
+      isOpen: false,
+      parentMessage: null,
+    },
+    activeView: "messages",
 
     fetchChannels: async () => {
       set({ isLoadingChannels: true });
@@ -243,6 +284,7 @@ export const useChatStore = create<ChatState>((set, get) => {
         hasMoreMessages: true,
         replyTo: null,
         typingUsers: new Map(),
+        activeView: "messages",
       });
 
       // Join new channel
@@ -430,6 +472,14 @@ export const useChatStore = create<ChatState>((set, get) => {
       console.log("========== END RECEIVED DEBUG ==========\n");
 
       set((state) => {
+        // Only add message if it's for the current active channel
+        if (
+          state.activeChannel &&
+          formattedMessage.channelId !== state.activeChannel.id
+        ) {
+          return state;
+        }
+
         // Check if message already exists
         if (state.messages.some((m) => m.id === formattedMessage.id)) {
           return state;
@@ -620,6 +670,32 @@ export const useChatStore = create<ChatState>((set, get) => {
         },
       }),
 
+    // Thread actions
+    openThread: (message) =>
+      set({
+        threadPanel: {
+          isOpen: true,
+          parentMessage: message,
+        },
+      }),
+
+    closeThread: () =>
+      set({
+        threadPanel: {
+          isOpen: false,
+          parentMessage: null,
+        },
+      }),
+
+    setActiveView: (view) => set({ activeView: view }),
+
+    updateMessageThreadCount: (messageId, threadCount) =>
+      set((state) => ({
+        messages: state.messages.map((m) =>
+          m.id === messageId ? { ...m, threadCount } : m
+        ),
+      })),
+
     markAsRead: async (channelId) => {
       try {
         await messagesApi.markRead(channelId);
@@ -643,6 +719,43 @@ export const useChatStore = create<ChatState>((set, get) => {
     initSocketEvents: () => {
       const socket = getSocket();
       if (!socket) return;
+
+      socket.off("receive-message");
+      socket.off("typing");
+      socket.off("stop-typing");
+      socket.off("online-users");
+      socket.off("user-online");
+      socket.off("user-offline");
+      socket.off("reaction-updated");
+      socket.off("message-updated");
+      socket.off("message-deleted");
+      socket.off("messages-read");
+      socket.off("member-added");
+      socket.off("channel-added");
+      socket.off("new-message-notification");
+      socket.off("channel-deleted");
+      socket.off("user-status-changed");
+      socket.off("thread-reply");
+
+      socket.off("connect");
+
+      // Join active channel if any
+      const rejoinChannel = () => {
+        const activeChannel = get().activeChannel;
+        if (activeChannel) {
+          console.log(
+            "🔄 Socket (re)connected, joining channel:",
+            activeChannel.id
+          );
+          socket.emit("join-channel", { channelId: activeChannel.id });
+        }
+      };
+
+      // Handle connection and reconnection
+      socket.on("connect", rejoinChannel);
+
+      // Initial join
+      rejoinChannel();
 
       socket.on("receive-message", (data: MessagePayload) => {
         get().addMessage(data);
@@ -775,7 +888,14 @@ export const useChatStore = create<ChatState>((set, get) => {
 
       socket.on(
         "new-message-notification",
-        (data: { channelId: string; message: MessagePayload }) => {
+        (data: {
+          channelId: string;
+          message: MessagePayload;
+          shouldAlert?: boolean;
+          sound?: string;
+        }) => {
+          const { activeChannel, channels } = get();
+
           // Update unread count for the channel
           set((state) => ({
             channels: state.channels.map((c) =>
@@ -786,11 +906,94 @@ export const useChatStore = create<ChatState>((set, get) => {
                     lastMessage: {
                       content: data.message.content,
                       senderName: data.message.sender.name,
-                      senderId: data.message.sender._id,
+                      senderId:
+                        (data.message.sender as { id?: string; _id?: string })
+                          .id ||
+                        (data.message.sender as { id?: string; _id?: string })
+                          ._id,
                       createdAt: data.message.createdAt,
                     },
                   }
                 : c
+            ),
+          }));
+
+          // Handle alerts (Toasts & Sounds)
+          if (data.shouldAlert) {
+            // Only show toast if window is blurred or user is in a different channel
+            const isInChannel = activeChannel?.id === data.channelId;
+            const isWindowFocused = document.hasFocus();
+
+            if (!isInChannel || !isWindowFocused) {
+              const channel = channels.find((c) => c.id === data.channelId);
+              toast.info(`New message in #${channel?.name || "channel"}`, {
+                description: `${
+                  data.message.sender.name
+                }: ${data.message.content.substring(0, 50)}${
+                  data.message.content.length > 50 ? "..." : ""
+                }`,
+                action: {
+                  label: "View",
+                  onClick: () => {
+                    const targetChannel = channels.find(
+                      (c) => c.id === data.channelId
+                    );
+                    if (targetChannel) get().setActiveChannel(targetChannel);
+                  },
+                },
+              });
+            }
+
+            // Play sound
+            if (data.sound && data.sound !== "none") {
+              const audio = new Audio(`/sounds/${data.sound}.mp3`);
+              audio.play().catch(() => {
+                // browser blocks audio until user interacts
+                console.log("Audio play blocked or file not found");
+              });
+            }
+          }
+        }
+      );
+
+      socket.on("channel-deleted", (data: { id: string }) => {
+        set((state) => ({
+          channels: state.channels.filter((c) => c.id !== data.id),
+          activeChannel:
+            state.activeChannel?.id === data.id ? null : state.activeChannel,
+        }));
+      });
+
+      socket.on(
+        "user-status-changed",
+        (data: {
+          userId: string;
+          customStatus: {
+            text: string;
+            emoji?: string;
+            expiresAt?: string;
+          };
+        }) => {
+          set((state) => ({
+            users: state.users.map((u) =>
+              u.id === data.userId || u._id === data.userId
+                ? { ...u, customStatus: data.customStatus }
+                : u
+            ),
+          }));
+        }
+      );
+
+      // Thread reply listener
+      socket.on(
+        "thread-reply",
+        (data: { parentMessageId: string; threadCount: number }) => {
+          // Update the thread count on the parent message
+          set((state) => ({
+            messages: state.messages.map((m) =>
+              m.id === data.parentMessageId
+                ? { ...m, threadCount: data.threadCount }
+                : m
             ),
           }));
         }

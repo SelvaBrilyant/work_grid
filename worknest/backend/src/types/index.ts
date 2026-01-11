@@ -30,7 +30,7 @@ export type ChannelType = "PUBLIC" | "PRIVATE" | "DM";
 export type ChannelMemberRole = "ADMIN" | "MEMBER";
 
 // Message Types
-export type ContentType = "TEXT" | "FILE" | "SYSTEM";
+export type ContentType = "TEXT" | "FILE" | "SYSTEM" | "AUDIO";
 
 // API Response Types
 export interface ApiResponse<T = unknown> {

@@ -94,4 +94,24 @@ router.post(
   asyncHandler(messageController.togglePin.bind(messageController))
 );
 
+/**
+ * @route   GET /api/messages/:messageId/thread
+ * @desc    Get thread replies for a message
+ * @access  Private (member only)
+ */
+router.get(
+  "/:messageId/thread",
+  asyncHandler(messageController.getThread.bind(messageController))
+);
+
+/**
+ * @route   POST /api/messages/:messageId/thread
+ * @desc    Reply to a thread
+ * @access  Private (member only)
+ */
+router.post(
+  "/:messageId/thread",
+  asyncHandler(messageController.replyToThread.bind(messageController))
+);
+
 export default router;

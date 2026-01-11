@@ -4,3 +4,5 @@ export { default as messageRoutes } from "./message.routes.js";
 export { default as userRoutes } from "./user.routes.js";
 export { default as uploadRoutes } from "./upload.routes.js";
 export { default as settingsRoutes } from "./settings.routes.js";
+export { default as searchRoutes } from "./search.routes.js";
+export { default as taskRoutes } from "./task.routes.js";

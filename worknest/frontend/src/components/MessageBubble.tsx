@@ -1,6 +1,7 @@
 import { memo, useState } from 'react';
-import { Reply, Smile, MoreHorizontal, Pencil, Trash2, Check, CheckCheck, Pin, PinOff, Download, FileIcon } from 'lucide-react';
+import { Reply, Smile, MoreHorizontal, Pencil, Trash2, Check, CheckCheck, Pin, PinOff, Download, FileIcon, MessageSquare } from 'lucide-react';
 import { cn, formatTime, getInitials, getAvatarColor } from '@/lib/utils';
+import { VoiceMessage } from './VoiceMessage';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import {
@@ -39,7 +40,7 @@ export const MessageBubble = memo(function MessageBubble({
     onScrollToMessage,
 }: MessageBubbleProps) {
     const { user } = useAuthStore();
-    const { editMessage, deleteMessage, openDetails, users, activeChannel } = useChatStore();
+    const { editMessage, deleteMessage, openDetails, users, activeChannel, openThread } = useChatStore();
     const [isEditing, setIsEditing] = useState(false);
     const [editValue, setEditValue] = useState(message.content);
     const isMe = (message.sender?._id === user?.id) || (message.sender?.id === user?.id);
@@ -115,166 +116,212 @@ export const MessageBubble = memo(function MessageBubble({
                     </div>
                 )}
 
-                {/* Message Content */}
-                <div
-                    className={cn(
-                        'text-sm leading-relaxed break-words',
-                        isGrouped && 'ml-0',
-                        message.isDeleted && 'text-muted-foreground italic'
-                    )}
-                >
-                    {isEditing ? (
-                        <div className="space-y-2 mt-1">
-                            <textarea
-                                className="w-full p-2 text-sm bg-background border rounded-md focus:outline-none focus:ring-1 focus:ring-primary min-h-[60px] resize-none"
-                                value={editValue}
-                                onChange={(e) => setEditValue(e.target.value)}
-                                autoFocus
-                            />
-                            <div className="flex justify-end gap-2">
-                                <Button
-                                    size="sm"
-                                    variant="ghost"
-                                    onClick={() => {
-                                        setIsEditing(false);
-                                        setEditValue(message.content);
-                                    }}
-                                >
-                                    Cancel
-                                </Button>
-                                <Button
-                                    size="sm"
-                                    onClick={async () => {
-                                        if (editValue.trim() && editValue !== message.content) {
-                                            await editMessage(message.id, editValue);
-                                        }
-                                        setIsEditing(false);
-                                    }}
-                                >
-                                    Save
-                                </Button>
-                            </div>
-                        </div>
-                    ) : (
-                        <>
-                            {message.isDeleted ? (
-                                "This message has been deleted"
-                            ) : (
-                                (() => {
-                                    // Improved mention regex: @ followed by words and spaces until a non-word char and non-space if no user matches
-                                    // For simplicity, we'll try to find any substring starting with @ that matches a user name
-                                    const content = message.content;
-                                    const renderedParts: (string | React.ReactNode)[] = [];
-
-                                    // Regular expression that finds @ followed by potentially multiple words (names with spaces)
-                                    // We'll iterate through all users and see which ones are mentioned
-                                    const mentions: { start: number, end: number, userId: string, name: string }[] = [];
-                                    const sortedUsers = [...users].sort((a, b) => b.name.length - a.name.length);
-
-                                    sortedUsers.forEach(user => {
-                                        const mentionText = `@${user.name}`;
-                                        let pos = content.indexOf(mentionText);
-                                        while (pos !== -1) {
-                                            mentions.push({
-                                                start: pos,
-                                                end: pos + mentionText.length,
-                                                userId: user.id,
-                                                name: user.name
-                                            });
-                                            pos = content.indexOf(mentionText, pos + mentionText.length);
-                                        }
-                                    });
-
-                                    // Sort mentions by position, then by length (longer first at same pos)
-                                    mentions.sort((a, b) => {
-                                        if (a.start !== b.start) return a.start - b.start;
-                                        return b.end - a.end;
-                                    });
-
-                                    // Handle overlapping mentions (if any)
-                                    let currentPos = 0;
-                                    mentions.forEach((mention, idx) => {
-                                        if (mention.start >= currentPos) {
-                                            // Process mentions, ensuring no overlap and correct rendering order.
-                                            if (mention.start > currentPos) {
-                                                renderedParts.push(content.substring(currentPos, mention.start));
+                {/* Message Content (Voice or Text) */}
+                {message.contentType === 'AUDIO' && message.attachments && message.attachments[0] ? (
+                    <div className="mt-2">
+                        <VoiceMessage
+                            url={message.attachments[0].url}
+                            waveform={message.attachments[0].waveform}
+                            duration={message.attachments[0].duration}
+                            isMe={isMe}
+                        />
+                    </div>
+                ) : (
+                    <div
+                        className={cn(
+                            'text-sm leading-relaxed break-words',
+                            isGrouped && 'ml-0',
+                            message.isDeleted && 'text-muted-foreground italic'
+                        )}
+                    >
+                        {isEditing ? (
+                            <div className="space-y-2 mt-1">
+                                <textarea
+                                    className="w-full p-2 text-sm bg-background border rounded-md focus:outline-none focus:ring-1 focus:ring-primary min-h-[60px] resize-none"
+                                    value={editValue}
+                                    onChange={(e) => setEditValue(e.target.value)}
+                                    autoFocus
+                                />
+                                <div className="flex justify-end gap-2">
+                                    <Button
+                                        size="sm"
+                                        variant="ghost"
+                                        onClick={() => {
+                                            setIsEditing(false);
+                                            setEditValue(message.content);
+                                        }}
+                                    >
+                                        Cancel
+                                    </Button>
+                                    <Button
+                                        size="sm"
+                                        onClick={async () => {
+                                            if (editValue.trim() && editValue !== message.content) {
+                                                await editMessage(message.id, editValue);
                                             }
-                                            // Add mention component
-                                            renderedParts.push(
-                                                <span
-                                                    key={`mention-${idx}`}
-                                                    className="font-bold text-primary bg-primary/10 px-1 rounded cursor-pointer hover:bg-primary/20 transition-colors inline-block"
+                                            setIsEditing(false);
+                                        }}
+                                    >
+                                        Save
+                                    </Button>
+                                </div>
+                            </div>
+                        ) : (
+                            <>
+                                {message.isDeleted ? (
+                                    "This message has been deleted"
+                                ) : (
+                                    (() => {
+                                        // Improved mention regex logic...
+                                        const content = message.content;
+                                        const renderedParts: (string | React.ReactNode)[] = [];
+                                        const specialMentions = ['@channel', '@here', '@online'];
+                                        const mentions: { start: number, end: number, userId?: string, name: string, isSpecial: boolean }[] = [];
+
+                                        specialMentions.forEach(mention => {
+                                            const regex = new RegExp(mention + '\\b', 'gi');
+                                            let match;
+                                            while ((match = regex.exec(content)) !== null) {
+                                                mentions.push({
+                                                    start: match.index,
+                                                    end: match.index + match[0].length,
+                                                    name: mention.substring(1),
+                                                    isSpecial: true
+                                                });
+                                            }
+                                        });
+
+                                        const sortedUsers = [...users].sort((a, b) => b.name.length - a.name.length);
+                                        sortedUsers.forEach(user => {
+                                            const mentionText = `@${user.name}`;
+                                            let pos = content.indexOf(mentionText);
+                                            while (pos !== -1) {
+                                                const overlapsSpecial = mentions.some(m =>
+                                                    m.isSpecial &&
+                                                    ((pos >= m.start && pos < m.end) || (pos + mentionText.length > m.start && pos + mentionText.length <= m.end))
+                                                );
+                                                if (!overlapsSpecial) {
+                                                    mentions.push({
+                                                        start: pos,
+                                                        end: pos + mentionText.length,
+                                                        userId: user.id,
+                                                        name: user.name,
+                                                        isSpecial: false
+                                                    });
+                                                }
+                                                pos = content.indexOf(mentionText, pos + mentionText.length);
+                                            }
+                                        });
+
+                                        mentions.sort((a, b) => {
+                                            if (a.start !== b.start) return a.start - b.start;
+                                            return b.end - a.end;
+                                        });
+
+                                        let currentPos = 0;
+                                        mentions.forEach((mention, idx) => {
+                                            if (mention.start >= currentPos) {
+                                                if (mention.start > currentPos) {
+                                                    renderedParts.push(content.substring(currentPos, mention.start));
+                                                }
+                                                if (mention.isSpecial) {
+                                                    renderedParts.push(
+                                                        <span
+                                                            key={`special-mention-${idx}`}
+                                                            className="font-bold text-white bg-gradient-to-r from-primary to-purple-600 px-1.5 py-0.5 rounded cursor-default inline-block text-sm"
+                                                        >
+                                                            @{mention.name}
+                                                        </span>
+                                                    );
+                                                } else {
+                                                    renderedParts.push(
+                                                        <span
+                                                            key={`mention-${idx}`}
+                                                            className="font-bold text-primary bg-primary/10 px-1 rounded cursor-pointer hover:bg-primary/20 transition-colors inline-block"
+                                                            onClick={(e) => {
+                                                                e.stopPropagation();
+                                                                openDetails('USER', mention.userId!);
+                                                            }}
+                                                        >
+                                                            @{mention.name}
+                                                        </span>
+                                                    );
+                                                }
+                                                currentPos = mention.end;
+                                            }
+                                        });
+
+                                        if (currentPos < content.length) {
+                                            renderedParts.push(content.substring(currentPos));
+                                        }
+
+                                        return renderedParts.length > 0 ? renderedParts : [content];
+                                    })()
+                                )}
+                            </>
+                        )}
+                    </div>
+                )}
+
+                {/* Attachments (Non-Audio or Multiple) */}
+                {message.attachments && message.attachments.length > (message.contentType === 'AUDIO' ? 1 : 0) && (
+                    <div className="mt-2 space-y-2">
+                        {message.attachments.map((file, i) => {
+                            if (message.contentType === 'AUDIO' && i === 0) return null;
+                            return (
+                                <div key={i} className="w-fit max-w-[85%]">
+                                    {file.type.startsWith('image/') ? (
+                                        <div className="relative group/img rounded-2xl overflow-hidden bg-black/5 ring-1 ring-border shadow-sm hover:shadow-md transition-all">
+                                            <img
+                                                src={file.url.startsWith('http') ? file.url : `http://localhost:5000${file.url}`}
+                                                alt={file.name}
+                                                className="max-h-[400px] w-auto max-w-full object-contain hover:scale-[1.01] transition-transform cursor-pointer"
+                                                onClick={() => window.open(file.url.startsWith('http') ? file.url : `http://localhost:5000${file.url}`, '_blank')}
+                                            />
+                                            <div className="absolute top-2 right-2 opacity-0 group-hover/img:opacity-100 transition-opacity">
+                                                <Button
+                                                    variant="secondary"
+                                                    size="icon"
+                                                    className="h-8 w-8 bg-black/40 hover:bg-black/60 text-white border-none backdrop-blur-md rounded-lg"
                                                     onClick={(e) => {
                                                         e.stopPropagation();
-                                                        openDetails('USER', mention.userId);
+                                                        window.open(file.url.startsWith('http') ? file.url : `http://localhost:5000${file.url}`, '_blank');
                                                     }}
                                                 >
-                                                    @{mention.name}
-                                                </span>
-                                            );
-                                            currentPos = mention.end;
-                                        }
-                                    });
-
-                                    // Add remaining text
-                                    if (currentPos < content.length) {
-                                        renderedParts.push(content.substring(currentPos));
-                                    }
-
-                                    return renderedParts.length > 0 ? renderedParts : [content];
-                                })()
-                            )}
-                        </>
-                    )}
-                </div>
-
-                {/* Attachments */}
-                {message.attachments && message.attachments.length > 0 && (
-                    <div className="mt-2 space-y-2">
-                        {message.attachments.map((file, i) => (
-                            <div key={i} className="max-w-[400px]">
-                                {file.type.startsWith('image/') ? (
-                                    <div className="relative group/img rounded-lg overflow-hidden border">
-                                        <img
-                                            src={file.url.startsWith('http') ? file.url : `http://localhost:5000${file.url}`}
-                                            alt={file.name}
-                                            className="max-h-[300px] w-auto object-cover hover:scale-[1.02] transition-transform cursor-pointer"
-                                            onClick={() => window.open(file.url.startsWith('http') ? file.url : `http://localhost:5000${file.url}`, '_blank')}
-                                        />
-                                        <div className="absolute inset-0 bg-black/40 opacity-0 group-hover/img:opacity-100 transition-opacity flex items-center justify-center">
-                                            <Button variant="secondary" size="sm" onClick={() => window.open(file.url.startsWith('http') ? file.url : `http://localhost:5000${file.url}`, '_blank')}>
-                                                <Download className="h-4 w-4 mr-2" />
-                                                Download
-                                            </Button>
+                                                    <Download className="h-4 w-4" />
+                                                </Button>
+                                            </div>
                                         </div>
-                                    </div>
-                                ) : file.type.startsWith('video/') ? (
-                                    <div className="relative rounded-lg overflow-hidden border bg-black">
-                                        <video
-                                            src={file.url.startsWith('http') ? file.url : `http://localhost:5000${file.url}`}
-                                            controls
-                                            className="max-h-[300px] w-full"
-                                        />
-                                    </div>
-                                ) : (
-                                    <a
-                                        href={file.url.startsWith('http') ? file.url : `http://localhost:5000${file.url}`}
-                                        target="_blank"
-                                        rel="noopener noreferrer"
-                                        className="flex items-center gap-3 p-3 rounded-lg border bg-muted/30 hover:bg-muted/50 transition-colors group/file"
-                                    >
-                                        <div className="h-10 w-10 flex-shrink-0 rounded bg-primary/10 flex items-center justify-center text-primary">
-                                            <FileIcon className="h-6 w-6" />
+                                    ) : file.type.startsWith('video/') ? (
+                                        <div className="relative rounded-2xl overflow-hidden shadow-sm border bg-black">
+                                            <video
+                                                src={file.url.startsWith('http') ? file.url : `http://localhost:5000${file.url}`}
+                                                controls
+                                                className="max-h-[400px] w-full"
+                                            />
                                         </div>
-                                        <div className="flex-1 min-w-0">
-                                            <p className="text-sm font-medium truncate">{file.name}</p>
-                                            <p className="text-xs text-muted-foreground">{formatFileSize(file.size)}</p>
-                                        </div>
-                                        <Download className="h-4 w-4 text-muted-foreground group-hover/file:text-primary transition-colors" />
-                                    </a>
-                                )}
-                            </div>
-                        ))}
+                                    ) : (
+                                        <a
+                                            href={file.url.startsWith('http') ? file.url : `http://localhost:5000${file.url}`}
+                                            target="_blank"
+                                            rel="noopener noreferrer"
+                                            className="flex items-center gap-4 p-3.5 rounded-2xl border bg-muted/40 hover:bg-muted/60 transition-all group/file hover:border-primary/20 shadow-sm"
+                                        >
+                                            <div className="h-11 w-11 flex-shrink-0 rounded-xl bg-primary/10 flex items-center justify-center text-primary group-hover:scale-105 transition-transform">
+                                                <FileIcon className="h-6 w-6" />
+                                            </div>
+                                            <div className="flex-1 min-w-0">
+                                                <p className="text-[13px] font-bold truncate group-hover:text-primary transition-colors">{file.name}</p>
+                                                <p className="text-[11px] text-muted-foreground font-medium">{formatFileSize(file.size)}</p>
+                                            </div>
+                                            <div className="h-8 w-8 rounded-lg flex items-center justify-center bg-muted/50 group-hover/file:bg-primary/20 group-hover/file:text-primary transition-colors">
+                                                <Download className="h-4 w-4" />
+                                            </div>
+                                        </a>
+                                    )}
+                                </div>
+                            );
+                        })}
                     </div>
                 )}
 
@@ -414,6 +461,34 @@ export const MessageBubble = memo(function MessageBubble({
                         <TooltipContent>Reply</TooltipContent>
                     </Tooltip>
 
+                    {/* Start Thread */}
+                    {!message.parentMessageId && (
+                        <Tooltip>
+                            <TooltipTrigger asChild>
+                                <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    className="h-7 w-7 relative"
+                                    onClick={() => openThread({
+                                        id: message.id,
+                                        content: message.content,
+                                        sender: message.sender,
+                                    })}
+                                >
+                                    <MessageSquare className="h-4 w-4" />
+                                    {message.threadCount && message.threadCount > 0 && (
+                                        <span className="absolute -top-1 -right-1 h-4 w-4 rounded-full bg-primary text-[10px] text-white flex items-center justify-center">
+                                            {message.threadCount > 9 ? '9+' : message.threadCount}
+                                        </span>
+                                    )}
+                                </Button>
+                            </TooltipTrigger>
+                            <TooltipContent>
+                                {message.threadCount ? `${message.threadCount} replies` : 'Start Thread'}
+                            </TooltipContent>
+                        </Tooltip>
+                    )}
+
                     {/* More Options */}
                     <DropdownMenu>
                         <DropdownMenuTrigger asChild>
@@ -456,6 +531,16 @@ export const MessageBubble = memo(function MessageBubble({
                                 <DropdownMenuItem onClick={() => onReply?.(message)}>
                                     <Reply className="mr-2 h-4 w-4" />
                                     Reply
+                                </DropdownMenuItem>
+                            )}
+                            {!message.isDeleted && !message.parentMessageId && (
+                                <DropdownMenuItem onClick={() => openThread({
+                                    id: message.id,
+                                    content: message.content,
+                                    sender: message.sender,
+                                })}>
+                                    <MessageSquare className="mr-2 h-4 w-4" />
+                                    {message.threadCount ? 'View Thread' : 'Start Thread'}
                                 </DropdownMenuItem>
                             )}
                         </DropdownMenuContent>

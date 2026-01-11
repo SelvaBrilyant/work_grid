@@ -101,6 +101,18 @@ export const channelsApi = {
     api.delete(`/channels/${channelId}/members/${userId}`),
 
   createDM: (userId: string) => api.post("/channels/dm", { userId }),
+
+  getFiles: (channelId: string, type?: string) =>
+    api.get(`/channels/${channelId}/files`, { params: type ? { type } : {} }),
+
+  updateNotifications: (
+    id: string,
+    data: {
+      notifyOn?: "ALL" | "MENTIONS" | "NONE";
+      muteUntil?: string | null;
+      sound?: string;
+    }
+  ) => api.put(`/channels/${id}/notifications`, data),
 };
 
 // Messages API
@@ -131,6 +143,16 @@ export const messagesApi = {
   getPinned: (channelId: string) => api.get(`/messages/${channelId}/pinned`),
 
   togglePin: (id: string) => api.post(`/messages/${id}/pin`),
+
+  getThread: (
+    messageId: string,
+    params?: { limit?: number; before?: string }
+  ) => api.get(`/messages/${messageId}/thread`, { params }),
+
+  replyToThread: (
+    messageId: string,
+    data: { content: string; attachments?: unknown[] }
+  ) => api.post(`/messages/${messageId}/thread`, data),
 };
 
 // Uploads API
@@ -167,6 +189,21 @@ export const usersApi = {
 
   delete: (id: string) => api.delete(`/users/${id}`),
   deleteMe: () => api.delete("/users/me"),
+
+  updateStatus: (data: {
+    text?: string;
+    emoji?: string;
+    expiresAt?: string;
+    clearStatus?: boolean;
+  }) => api.put("/users/status", data),
+
+  updateProfile: (data: {
+    title?: string;
+    department?: string;
+    phone?: string;
+    timezone?: string;
+    bio?: string;
+  }) => api.put("/users/profile", data),
 };
 
 // Settings API
@@ -191,6 +228,21 @@ export const settingsApi = {
     };
   }) => api.put("/settings/user", data),
   logoutDevices: () => api.post("/settings/user/logout-devices"),
+};
+
+// Search API
+export const searchApi = {
+  globalSearch: (params: {
+    q: string;
+    channelId?: string;
+    userId?: string;
+    startDate?: string;
+    endDate?: string;
+    type?: "all" | "messages" | "files";
+    page?: number;
+    limit?: number;
+  }) => api.get("/search", { params }),
+  getHistory: () => api.get("/search/history"),
 };
 
 export default api;

@@ -180,7 +180,7 @@ class MessageController {
     };
 
     // Broadcast new message
-    io.to(`channel:${channelId}`).emit("message-created", messageData);
+    io.to(`channel:${channelId}`).emit("receive-message", messageData);
 
     res.status(201).json({
       success: true,
@@ -560,6 +560,159 @@ class MessageController {
         sender: msg.senderId,
         createdAt: msg.createdAt,
       })),
+    });
+  }
+
+  /**
+   * Get thread replies for a message
+   * @route GET /api/messages/:messageId/thread
+   */
+  async getThread(req: AuthenticatedRequest, res: Response): Promise<void> {
+    if (!req.user) {
+      throw new UnauthorizedError("Authentication required.");
+    }
+
+    const { messageId } = req.params;
+    const { limit = "50", before } = req.query;
+
+    // Get the parent message
+    const parentMessage = await Message.findById(messageId).populate(
+      "senderId",
+      "name email avatar"
+    );
+
+    if (!parentMessage) {
+      throw new NotFoundError("Message not found.");
+    }
+
+    // Verify membership
+    const membership = await ChannelMember.findOne({
+      channelId: parentMessage.channelId,
+      userId: req.user.userId,
+    });
+
+    if (!membership) {
+      throw new ForbiddenError("You are not a member of this channel.");
+    }
+
+    // Build query for thread replies
+    const query: Record<string, unknown> = {
+      parentMessageId: messageId,
+      isDeleted: false,
+    };
+
+    if (before) {
+      query.createdAt = { $lt: new Date(before as string) };
+    }
+
+    const replies = await Message.find(query)
+      .populate("senderId", "name email avatar")
+      .sort({ createdAt: 1 }) // Oldest first for threads
+      .limit(parseInt(limit as string));
+
+    res.json({
+      success: true,
+      data: {
+        parent: {
+          id: parentMessage._id,
+          content: parentMessage.content,
+          sender: parentMessage.senderId,
+          attachments: parentMessage.attachments,
+          createdAt: parentMessage.createdAt,
+          threadCount: parentMessage.threadCount,
+        },
+        replies: replies.map((msg) => ({
+          id: msg._id,
+          content: msg.content,
+          sender: msg.senderId,
+          attachments: msg.attachments,
+          createdAt: msg.createdAt,
+          isEdited: msg.isEdited,
+        })),
+        hasMore: replies.length === parseInt(limit as string),
+      },
+    });
+  }
+
+  /**
+   * Send a reply to a thread
+   * @route POST /api/messages/:messageId/thread
+   */
+  async replyToThread(req: AuthenticatedRequest, res: Response): Promise<void> {
+    if (!req.user) {
+      throw new UnauthorizedError("Authentication required.");
+    }
+
+    const { messageId } = req.params;
+    const { content, attachments = [] } = req.body;
+
+    if (!content || content.trim().length === 0) {
+      throw new BadRequestError("Message content is required.");
+    }
+
+    // Get the parent message
+    const parentMessage = await Message.findById(messageId);
+
+    if (!parentMessage) {
+      throw new NotFoundError("Parent message not found.");
+    }
+
+    // Don't allow replying to a thread reply (only one level deep)
+    if (parentMessage.parentMessageId) {
+      throw new BadRequestError(
+        "Cannot reply to a thread reply. Reply to the original message instead."
+      );
+    }
+
+    // Verify membership
+    const membership = await ChannelMember.findOne({
+      channelId: parentMessage.channelId,
+      userId: req.user.userId,
+    });
+
+    if (!membership) {
+      throw new ForbiddenError("You are not a member of this channel.");
+    }
+
+    // Create thread reply
+    const threadReply = await Message.create({
+      organizationId: req.user.organizationId,
+      channelId: parentMessage.channelId,
+      senderId: req.user.userId,
+      content: xss(content.trim()),
+      contentType: attachments.length > 0 ? "FILE" : "TEXT",
+      attachments,
+      parentMessageId: messageId,
+    });
+
+    // Update parent message thread count and last reply time
+    await Message.findByIdAndUpdate(messageId, {
+      $inc: { threadCount: 1 },
+      lastThreadReplyAt: new Date(),
+    });
+
+    // Populate sender
+    await threadReply.populate("senderId", "name email avatar");
+
+    const replyData = {
+      id: threadReply._id,
+      content: threadReply.content,
+      sender: threadReply.senderId,
+      attachments: threadReply.attachments,
+      parentMessageId: messageId,
+      createdAt: threadReply.createdAt,
+    };
+
+    // Broadcast thread reply to channel
+    io.to(`channel:${parentMessage.channelId}`).emit("thread-reply", {
+      parentMessageId: messageId,
+      reply: replyData,
+      threadCount: parentMessage.threadCount + 1,
+    });
+
+    res.status(201).json({
+      success: true,
+      data: replyData,
     });
   }
 }

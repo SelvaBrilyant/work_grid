@@ -16,6 +16,7 @@ const storage = new CloudinaryStorage({
     );
     const isImage = file.mimetype.startsWith("image/");
     const isVideo = file.mimetype.startsWith("video/");
+    const isAudio = file.mimetype.startsWith("audio/");
 
     let folder = "worknest/others";
     let resource_type = "auto";
@@ -23,9 +24,9 @@ const storage = new CloudinaryStorage({
     if (isImage) {
       folder = "worknest/images";
       resource_type = "image";
-    } else if (isVideo) {
-      folder = "worknest/videos";
-      resource_type = "video";
+    } else if (isVideo || isAudio) {
+      folder = isAudio ? "worknest/audio" : "worknest/videos";
+      resource_type = "video"; // Cloudinary uses 'video' for audio as well
     } else if (
       file.mimetype === "application/pdf" ||
       file.mimetype.includes("msword") ||
@@ -47,6 +48,7 @@ const storage = new CloudinaryStorage({
 const fileFilter = (req: any, file: any, cb: any) => {
   const isImage = file.mimetype.startsWith("image/");
   const isVideo = file.mimetype.startsWith("video/");
+  const isAudio = file.mimetype.startsWith("audio/");
   const isDoc = [
     "application/pdf",
     "application/msword",
@@ -59,13 +61,13 @@ const fileFilter = (req: any, file: any, cb: any) => {
     "text/csv",
   ].includes(file.mimetype);
 
-  if (isImage || isVideo || isDoc) {
+  if (isImage || isVideo || isAudio || isDoc) {
     cb(null, true);
   } else {
     console.warn(`File upload rejected. Unallowed MIME type: ${file.mimetype}`);
     cb(
       new Error(
-        "Invalid file type. Allowed types: Images, Videos, PDFs, Word, Excel, PowerPoint, and text files."
+        "Invalid file type. Allowed types: Images, Videos, Audio, PDFs, Word, Excel, PowerPoint, and text files."
       ),
       false
     );

@@ -13,8 +13,15 @@ export interface IMessage extends Document {
     name: string;
     type: string;
     size: number;
+    public_id?: string;
+    waveform?: number[];
+    duration?: number;
   }[];
   replyTo?: mongoose.Types.ObjectId;
+  // Thread-related fields
+  parentMessageId?: mongoose.Types.ObjectId; // For thread replies
+  threadCount: number; // Number of replies in thread
+  lastThreadReplyAt?: Date; // Timestamp of last thread reply
   isEdited: boolean;
   editedAt?: Date;
   isDeleted: boolean;
@@ -30,6 +37,19 @@ export interface IMessage extends Document {
   createdAt: Date;
   updatedAt: Date;
 }
+
+const attachmentSchema = new Schema(
+  {
+    url: { type: String, required: true },
+    name: { type: String, required: true },
+    type: { type: String, required: true },
+    size: { type: Number, required: true },
+    public_id: { type: String },
+    waveform: { type: [Number], default: [] }, // Normalized visual peaks
+    duration: { type: Number }, // Duration in seconds
+  },
+  { _id: false }
+);
 
 const messageSchema = new Schema<IMessage>(
   {
@@ -56,20 +76,31 @@ const messageSchema = new Schema<IMessage>(
     },
     contentType: {
       type: String,
-      enum: ["TEXT", "FILE", "SYSTEM"],
+      enum: ["TEXT", "FILE", "SYSTEM", "AUDIO"],
       default: "TEXT",
     },
-    attachments: [
-      {
-        url: String,
-        name: String,
-        type: String,
-        size: Number,
-      },
-    ],
+    attachments: {
+      type: [attachmentSchema],
+      default: [],
+    },
     replyTo: {
       type: Schema.Types.ObjectId,
       ref: "Message",
+      default: null,
+    },
+    // Thread-related fields
+    parentMessageId: {
+      type: Schema.Types.ObjectId,
+      ref: "Message",
+      default: null,
+      index: true,
+    },
+    threadCount: {
+      type: Number,
+      default: 0,
+    },
+    lastThreadReplyAt: {
+      type: Date,
       default: null,
     },
     isEdited: {

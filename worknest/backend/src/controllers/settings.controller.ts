@@ -128,12 +128,37 @@ class SettingsController {
     if (!user.settings) {
       user.settings = {
         preferences: { language: "en", timezone: "UTC", theme: "system" },
-        notifications: { messages: true, mentions: true, email: true },
+        notifications: {
+          messages: true,
+          mentions: true,
+          email: true,
+          desktop: true,
+          mobile: true,
+          sound: true,
+          soundName: "default",
+          dnd: { enabled: false, start: "22:00", end: "08:00" },
+          keywords: [],
+        },
         privacy: {
           showOnlineStatus: true,
           readReceipts: true,
           lastSeenVisibility: "everyone",
         },
+      };
+    } else if (!user.settings.notifications.soundName) {
+      // Migration for existing users
+      user.settings.notifications = {
+        ...user.settings.notifications,
+        desktop: user.settings.notifications.desktop ?? true,
+        mobile: user.settings.notifications.mobile ?? true,
+        sound: user.settings.notifications.sound ?? true,
+        soundName: user.settings.notifications.soundName ?? "default",
+        dnd: user.settings.notifications.dnd ?? {
+          enabled: false,
+          start: "22:00",
+          end: "08:00",
+        },
+        keywords: user.settings.notifications.keywords ?? [],
       };
     }
 

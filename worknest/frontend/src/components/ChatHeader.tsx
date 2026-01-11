@@ -4,6 +4,7 @@ import { useChatStore, useAuthStore } from '@/store';
 import { cn, getInitials, getAvatarColor } from '@/lib/utils';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 import {
     DropdownMenu,
     DropdownMenuContent,
@@ -13,7 +14,11 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 
-export function ChatHeader() {
+interface ChatHeaderProps {
+    onOpenGlobalSearch?: () => void;
+}
+
+export function ChatHeader({ onOpenGlobalSearch }: ChatHeaderProps) {
     const { activeChannel, onlineUsers, deleteChannel, setActiveChannel, openDetails, searchMessages, searchResults } = useChatStore();
     const { user } = useAuthStore();
     const [isSearchOpen, setIsSearchOpen] = useState(false);
@@ -104,21 +109,54 @@ export function ChatHeader() {
                             ? activeChannel.dmUser?.name || 'Direct Message'
                             : activeChannel.name}
                     </h1>
-                    <p className="text-xs text-muted-foreground">
-                        {activeChannel.type === 'DM' ? (
-                            isOnline ? (
-                                <span className="text-green-500 font-medium">● Online</span>
-                            ) : (
-                                'Offline'
-                            )
+                    <div className="flex items-center gap-2">
+                        {activeChannel.type !== 'DM' ? (
+                            <div className="flex items-center bg-muted/50 p-0.5 rounded-lg border border-border/50">
+                                <button
+                                    onClick={(e) => {
+                                        e.stopPropagation();
+                                        useChatStore.getState().setActiveView('messages');
+                                    }}
+                                    className={cn(
+                                        "px-2 py-0.5 text-[10px] font-bold rounded-md transition-all",
+                                        useChatStore.getState().activeView === 'messages'
+                                            ? "bg-background shadow-sm text-primary"
+                                            : "text-muted-foreground hover:text-foreground"
+                                    )}
+                                >
+                                    Messages
+                                </button>
+                                <button
+                                    onClick={(e) => {
+                                        e.stopPropagation();
+                                        useChatStore.getState().setActiveView('tasks');
+                                    }}
+                                    className={cn(
+                                        "px-2 py-0.5 text-[10px] font-bold rounded-md transition-all",
+                                        useChatStore.getState().activeView === 'tasks'
+                                            ? "bg-background shadow-sm text-primary"
+                                            : "text-muted-foreground hover:text-foreground"
+                                    )}
+                                >
+                                    Board
+                                </button>
+                            </div>
                         ) : (
-                            <span className="flex items-center gap-1">
-                                <Users className="h-3 w-3" />
-                                {activeChannel.memberCount || 0} members
-                                {activeChannel.description && ` · ${activeChannel.description}`}
+                            <p className="text-xs text-muted-foreground">
+                                {isOnline ? (
+                                    <span className="text-green-500 font-medium">● Online</span>
+                                ) : (
+                                    'Offline'
+                                )}
+                            </p>
+                        )}
+                        {activeChannel.type !== 'DM' && (
+                            <span className="text-[10px] text-muted-foreground/60 flex items-center gap-1 ml-1 h-5">
+                                <Users className="h-2.5 w-2.5" />
+                                {activeChannel.memberCount || 0}
                             </span>
                         )}
-                    </p>
+                    </div>
                 </div>
             </div>
 
@@ -145,33 +183,66 @@ export function ChatHeader() {
                     </>
                 )}
 
+                {/* Global Search */}
+                {!isSearchOpen && (
+                    <Tooltip>
+                        <TooltipTrigger asChild>
+                            <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-8 w-8"
+                                onClick={onOpenGlobalSearch}
+                            >
+                                <Search className="h-4 w-4" />
+                            </Button>
+                        </TooltipTrigger>
+                        <TooltipContent>
+                            <div className="flex flex-col items-center gap-1">
+                                <span>Global Search</span>
+                                <span className="text-[10px] opacity-70">⌘K / Ctrl+K</span>
+                            </div>
+                        </TooltipContent>
+                    </Tooltip>
+                )}
+
                 {/* Search */}
-                <div className="relative" ref={searchRef}>
-                    <div className={cn(
-                        "flex items-center gap-2 overflow-hidden bg-muted/50 rounded-lg transition-all",
-                        isSearchOpen ? "w-[250px] px-2 py-1 ml-2" : "w-0 px-0 py-0"
-                    )}>
-                        <Search className="h-4 w-4 text-muted-foreground shrink-0" />
-                        <input
-                            type="text"
-                            value={searchQuery}
-                            onChange={(e) => setSearchQuery(e.target.value)}
-                            placeholder="Search messages..."
-                            className="bg-transparent border-none focus:ring-0 text-sm w-full"
-                        />
-                        <Button
-                            variant="ghost"
-                            size="icon"
-                            className="h-6 w-6 shrink-0"
-                            onClick={() => {
-                                setIsSearchOpen(false);
-                                setSearchQuery('');
-                            }}
-                        >
-                            <X className="h-4 w-4" />
-                        </Button>
-                    </div>
-                    {!isSearchOpen && (
+                <div className="relative flex items-center" ref={searchRef}>
+                    {isSearchOpen ? (
+                        <div className="flex items-center gap-2 animate-in fade-in slide-in-from-right-2 duration-200">
+                            <div className="relative flex items-center">
+                                <Search className="absolute left-2.5 h-4 w-4 text-muted-foreground" />
+                                <Input
+                                    type="text"
+                                    value={searchQuery}
+                                    onChange={(e) => setSearchQuery(e.target.value)}
+                                    placeholder="Search messages..."
+                                    className="h-8 w-[200px] lg:w-[300px] pl-9 pr-9"
+                                    autoFocus
+                                />
+                                {searchQuery && (
+                                    <Button
+                                        variant="ghost"
+                                        size="icon"
+                                        className="absolute right-0 h-8 w-8 hover:bg-transparent"
+                                        onClick={() => setSearchQuery('')}
+                                    >
+                                        <X className="h-4 w-4" />
+                                    </Button>
+                                )}
+                            </div>
+                            <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-8 w-8"
+                                onClick={() => {
+                                    setIsSearchOpen(false);
+                                    setSearchQuery('');
+                                }}
+                            >
+                                <X className="h-4 w-4" />
+                            </Button>
+                        </div>
+                    ) : (
                         <Tooltip>
                             <TooltipTrigger asChild>
                                 <Button
@@ -183,7 +254,7 @@ export function ChatHeader() {
                                     <Search className="h-4 w-4" />
                                 </Button>
                             </TooltipTrigger>
-                            <TooltipContent>Search</TooltipContent>
+                            <TooltipContent>Search in channel</TooltipContent>
                         </Tooltip>
                     )}
 

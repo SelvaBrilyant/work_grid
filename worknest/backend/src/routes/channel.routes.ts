@@ -62,6 +62,16 @@ router.post(
 );
 
 /**
+ * @route   GET /api/channels/:id/files
+ * @desc    Get all files in a channel
+ * @access  Private (member only)
+ */
+router.get(
+  "/:id/files",
+  asyncHandler(channelController.getFiles.bind(channelController))
+);
+
+/**
  * @route   DELETE /api/channels/:id/members/:userId
  * @desc    Remove member from channel
  * @access  Private (Admin only)
@@ -69,6 +79,18 @@ router.post(
 router.delete(
   "/:id/members/:userId",
   asyncHandler(channelController.removeMember.bind(channelController))
+);
+
+/**
+ * @route   PUT /api/channels/:id/notifications
+ * @desc    Update channel notification settings
+ * @access  Private (member only)
+ */
+router.put(
+  "/:id/notifications",
+  asyncHandler(
+    channelController.updateNotificationSettings.bind(channelController)
+  )
 );
 
 export default router;

@@ -16,6 +16,18 @@ export interface IUser extends Document {
   invitationExpires?: Date;
   lastSeenAt: Date;
   statusMessage?: string;
+  customStatus?: {
+    text: string;
+    emoji?: string;
+    expiresAt?: Date;
+  };
+  profile?: {
+    title?: string;
+    department?: string;
+    phone?: string;
+    timezone?: string;
+    bio?: string;
+  };
   settings?: {
     preferences: {
       language: string;
@@ -26,6 +38,16 @@ export interface IUser extends Document {
       messages: boolean;
       mentions: boolean;
       email: boolean;
+      desktop: boolean;
+      mobile: boolean;
+      sound: boolean;
+      soundName: string;
+      dnd: {
+        enabled: boolean;
+        start: string; // "22:00"
+        end: string; // "08:00"
+      };
+      keywords: string[];
     };
     privacy: {
       showOnlineStatus: boolean;
@@ -102,6 +124,18 @@ const userSchema = new Schema<IUser>(
       maxlength: [100, "Status message cannot exceed 100 characters"],
       default: null,
     },
+    customStatus: {
+      text: { type: String, maxlength: 100, default: "" },
+      emoji: { type: String, default: null },
+      expiresAt: { type: Date, default: null },
+    },
+    profile: {
+      title: { type: String, maxlength: 100 },
+      department: { type: String, maxlength: 100 },
+      phone: { type: String, maxlength: 30 },
+      timezone: { type: String, default: "UTC" },
+      bio: { type: String, maxlength: 500 },
+    },
     settings: {
       preferences: {
         language: { type: String, default: "en" },
@@ -116,6 +150,16 @@ const userSchema = new Schema<IUser>(
         messages: { type: Boolean, default: true },
         mentions: { type: Boolean, default: true },
         email: { type: Boolean, default: true },
+        desktop: { type: Boolean, default: true },
+        mobile: { type: Boolean, default: true },
+        sound: { type: Boolean, default: true },
+        soundName: { type: String, default: "default" },
+        dnd: {
+          enabled: { type: Boolean, default: false },
+          start: { type: String, default: "22:00" },
+          end: { type: String, default: "08:00" },
+        },
+        keywords: { type: [String], default: [] },
       },
       privacy: {
         showOnlineStatus: { type: Boolean, default: true },
